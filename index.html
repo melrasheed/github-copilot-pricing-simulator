@@ -237,6 +237,9 @@ details.rule summary { cursor: pointer; font-weight: 600; }
 .live-meters { position: sticky; top: 0.75rem; z-index: 5; border-color: var(--cp-accent); box-shadow: var(--cp-shadow); }
 .meter-list { display: grid; gap: 0.55rem; margin-top: 0.9rem; }
 .meter-row .meter-head { display: flex; justify-content: space-between; gap: 0.75rem; font-size: 0.82rem; margin-bottom: 0.12rem; }
+
+/* Global disclaimer footer (shown on every view) */
+.app-footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--cp-border); font-size: 0.8rem; color: var(--cp-text-muted); line-height: 1.5; }
 @media (max-width: 780px) {
   .app { flex-direction: column; }
   .sidebar { width: 100%; height: auto; position: static; flex-direction: row; flex-wrap: wrap; }
@@ -1158,6 +1161,8 @@ details.rule summary { cursor: pointer; font-weight: 600; }
   'use strict';
   var DATA = window.SIM_DATA, E = window.SIM_ENGINE, SC = window.SIM_SCENARIOS, C = DATA.CONSTANTS;
   var STORAGE_KEY = 'gh-copilot-billing-sim.v1';
+  var LAST_UPDATED = '2026-07-23';
+  var CONTACT_EMAIL = 'mohdrash1990@hotmail.com';
 
   /* --------------------------------- state -------------------------------- */
   var state = load() || SC.initial();
@@ -1353,6 +1358,16 @@ details.rule summary { cursor: pointer; font-weight: 600; }
   function flowArrow() { return h('div', { class: 'flow-arrow' }, '\u2192'); }
   function bullets(arr) { return h('ul', { class: 'tick-list' }, arr.map(function (t) { return h('li', null, t); })); }
   function linkTo(viewId, label) { return h('a', { href: '#', class: 'inline-link', onclick: function (e) { e.preventDefault(); activeView = viewId; render(); } }, label); }
+
+  function disclaimerFooter() {
+    return h('footer', { class: 'app-footer' },
+      h('div', null, h('strong', null, 'Disclaimer: '),
+        'This is an unofficial, independent educational tool. It is not affiliated with, endorsed by, or supported by Microsoft or GitHub, and neither Microsoft nor GitHub is responsible for this tool or its content. Figures are modeled from public documentation and may be inaccurate or out of date — always verify against the official ',
+        h('a', { class: 'inline-link', href: 'https://docs.github.com/en/billing', target: '_blank', rel: 'noopener' }, 'GitHub billing documentation'), '.'),
+      h('div', { style: 'margin-top:0.35rem' },
+        'Last updated: ', h('strong', null, LAST_UPDATED),
+        '  \u2022  Issues or feedback: ', h('a', { class: 'inline-link', href: 'mailto:' + CONTACT_EMAIL }, CONTACT_EMAIL)));
+  }
 
   /* --------------------------------- overview ----------------------------- */
   function viewOverview() {
@@ -2241,13 +2256,14 @@ details.rule summary { cursor: pointer; font-weight: 600; }
       NAV.map(function (n) { return h('button', { class: 'nav-btn' + (n.id === activeView ? ' active' : ''), onclick: function () { activeView = n.id; render(); } }, n.label); }),
       h('div', { class: 'spacer' }),
       h('button', { class: 'nav-btn', onclick: toggleTheme }, 'Toggle theme'),
-      h('div', { class: 'section-note', style: 'padding:0 0.7rem' }, 'Educational model of GitHub Copilot usage-based billing. Not affiliated with GitHub. Verify figures against official docs.')
+      h('div', { class: 'section-note', style: 'padding:0 0.7rem' }, 'Unofficial educational tool — not affiliated with or endorsed by Microsoft or GitHub. See the disclaimer at the bottom of the page.')
     );
 
     var view = (NAV.filter(function (n) { return n.id === activeView; })[0] || NAV[0]);
     var main = h('main', { class: 'main' },
       h('div', { class: 'view-header' }, h('h1', null, view.label), h('div', { class: 'muted' }, state.enterprise.name + ' • ' + state.clock.currentDateUtc)),
-      view.render()
+      view.render(),
+      disclaimerFooter()
     );
 
     root.appendChild(h('div', { class: 'app' }, nav, main));
