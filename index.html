@@ -1,0 +1,2067 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GitHub Copilot Usage-Based Billing Simulator</title>
+<meta name="description" content="An offline, documentation-grounded educational simulator for GitHub Copilot usage-based billing, budgets, and spending controls." />
+<script>
+  (() => {
+    const param = new URLSearchParams(window.location.search).get("scoutTheme");
+    const theme =
+      param || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    document.documentElement.setAttribute("data-theme", theme);
+  })();
+</script>
+<style>
+/* styles.css — Clawpilot theme + simulator UI. Colors use only var(--cp-*). */
+:root {
+  color-scheme: light;
+  --cp-bg: #f7f4ef;
+  --cp-bg-elevated: #fcfbf8;
+  --cp-surface: #ffffff;
+  --cp-surface-soft: #f5f5f5;
+  --cp-border: #dedede;
+  --cp-border-strong: #919191;
+  --cp-text: #242424;
+  --cp-text-muted: #5c5c5c;
+  --cp-text-soft: #6f6f6f;
+  --cp-accent: #b11f4b;
+  --cp-accent-hover: #9a1a41;
+  --cp-accent-soft: rgba(177, 31, 75, 0.08);
+  --cp-accent-fg: #ffffff;
+  --cp-success: #16a34a;
+  --cp-danger: #dc2626;
+  --cp-warning: #f59e0b;
+  --cp-link: #0078d4;
+  --cp-shadow: 0 18px 48px rgba(0, 0, 0, 0.12);
+  --cp-overlay: rgba(255, 255, 255, 0.8);
+  --cp-panel: rgba(255, 255, 255, 0.86);
+  --cp-panel-strong: rgba(255, 255, 255, 0.96);
+  --cp-sheen: rgba(255, 255, 255, 0.55);
+  --cp-highlight: rgba(177, 31, 75, 0.12);
+}
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --cp-bg: #3d3b3a;
+  --cp-bg-elevated: #343231;
+  --cp-surface: #292929;
+  --cp-surface-soft: #2e2e2e;
+  --cp-border: #474747;
+  --cp-border-strong: #5f5f5f;
+  --cp-text: #dedede;
+  --cp-text-muted: #919191;
+  --cp-text-soft: #b0b0b0;
+  --cp-accent: #fd8ea1;
+  --cp-accent-hover: #fb7b91;
+  --cp-accent-soft: rgba(253, 142, 161, 0.14);
+  --cp-accent-fg: #1a1a1a;
+  --cp-success: #4ade80;
+  --cp-danger: #f87171;
+  --cp-warning: #fbbf24;
+  --cp-link: #4da6ff;
+  --cp-shadow: 0 18px 48px rgba(0, 0, 0, 0.32);
+  --cp-overlay: rgba(41, 41, 41, 0.88);
+  --cp-panel: rgba(41, 41, 41, 0.72);
+  --cp-panel-strong: rgba(41, 41, 41, 0.96);
+  --cp-sheen: rgba(255, 255, 255, 0.04);
+  --cp-highlight: rgba(253, 142, 161, 0.12);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--cp-bg);
+  color: var(--cp-text);
+  font-family: "Segoe UI", Aptos, Calibri, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+code, pre, .mono { font-family: Consolas, "Courier New", Courier, monospace; }
+a { color: var(--cp-link); text-decoration: none; }
+a:hover { text-decoration: underline; }
+h1, h2, h3, h4 { margin: 0 0 0.5rem; font-weight: 600; }
+h1 { font-size: 1.4rem; }
+h2 { font-size: 1.15rem; }
+h3 { font-size: 1rem; }
+p { margin: 0 0 0.75rem; }
+small { color: var(--cp-text-muted); }
+
+/* Layout */
+.app { display: flex; min-height: 100vh; }
+.sidebar {
+  width: 240px; flex-shrink: 0; background: var(--cp-bg-elevated);
+  border-right: 1px solid var(--cp-border); padding: 1rem; position: sticky; top: 0; height: 100vh;
+  display: flex; flex-direction: column; gap: 0.25rem; overflow-y: auto;
+}
+.brand { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }
+.brand .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--cp-accent); }
+.brand strong { font-size: 0.95rem; }
+.nav-btn {
+  text-align: left; background: transparent; border: none; color: var(--cp-text);
+  padding: 0.55rem 0.7rem; border-radius: 0.625rem; cursor: pointer; font-size: 0.9rem; width: 100%;
+}
+.nav-btn:hover { background: var(--cp-surface-soft); }
+.nav-btn.active { background: var(--cp-accent-soft); color: var(--cp-accent); font-weight: 600; }
+.sidebar .spacer { flex: 1; }
+.main { flex: 1; padding: 1.5rem 2rem; max-width: 1200px; margin: 0 auto; width: 100%; }
+.view-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; }
+
+/* Cards */
+.card {
+  background: var(--cp-surface); border: 1px solid var(--cp-border); border-radius: 16px;
+  padding: 1.1rem 1.25rem; margin-bottom: 1rem;
+  box-shadow: 0 0 2px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.14);
+}
+.card h3 { display: flex; align-items: center; gap: 0.5rem; }
+.grid { display: grid; gap: 1rem; }
+.grid.cols-2 { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.grid.cols-3 { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.grid.cols-4 { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+
+/* Stat tiles */
+.stat { background: var(--cp-surface); border: 1px solid var(--cp-border); border-radius: 16px; padding: 0.9rem 1rem; }
+.stat .label { color: var(--cp-text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.03em; }
+.stat .value { font-size: 1.5rem; font-weight: 600; margin-top: 0.15rem; }
+.stat .sub { font-size: 0.8rem; color: var(--cp-text-soft); }
+
+/* Progress bar */
+.bar { height: 8px; border-radius: 6px; background: var(--cp-surface-soft); overflow: hidden; margin-top: 0.4rem; }
+.bar > span { display: block; height: 100%; background: var(--cp-accent); }
+.bar.warn > span { background: var(--cp-warning); }
+.bar.danger > span { background: var(--cp-danger); }
+
+/* Forms */
+label.field { display: block; margin-bottom: 0.7rem; font-size: 0.85rem; }
+label.field > span { display: block; color: var(--cp-text-muted); margin-bottom: 0.2rem; }
+input, select, textarea {
+  width: 100%; padding: 0.45rem 0.6rem; border: 1px solid var(--cp-border-strong);
+  border-radius: 0.625rem; background: var(--cp-bg-elevated); color: var(--cp-text); font: inherit;
+}
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--cp-accent); outline-offset: 1px; border-color: var(--cp-accent); }
+.row { display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: flex-end; }
+.row > * { flex: 1; min-width: 140px; }
+.inline { display: flex; align-items: center; gap: 0.4rem; }
+.inline input[type="checkbox"] { width: auto; }
+
+/* Buttons */
+button.btn {
+  background: var(--cp-accent); color: var(--cp-accent-fg); border: none; padding: 0.5rem 0.95rem;
+  border-radius: 0.625rem; cursor: pointer; font: inherit; font-weight: 600;
+}
+button.btn:hover { background: var(--cp-accent-hover); }
+button.btn.ghost { background: transparent; color: var(--cp-accent); border: 1px solid var(--cp-border-strong); }
+button.btn.ghost:hover { background: var(--cp-accent-soft); }
+button.btn.small { padding: 0.3rem 0.6rem; font-size: 0.8rem; }
+button.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+/* Tables */
+table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+th, td { text-align: left; padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--cp-border); vertical-align: top; }
+th { color: var(--cp-text-muted); font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.02em; }
+tbody tr:hover { background: var(--cp-surface-soft); }
+.table-wrap { overflow-x: auto; }
+
+/* Badges */
+.badge { display: inline-block; padding: 0.1rem 0.5rem; border-radius: 999px; font-size: 0.72rem; font-weight: 600; }
+.badge.ok { background: rgba(22,163,74,0.14); color: var(--cp-success); }
+.badge.block { background: rgba(220,38,38,0.14); color: var(--cp-danger); }
+.badge.meter { background: var(--cp-accent-soft); color: var(--cp-accent); }
+.badge.warn { background: rgba(245,158,11,0.16); color: var(--cp-warning); }
+.badge.neutral { background: var(--cp-surface-soft); color: var(--cp-text-muted); }
+
+/* Doc chips */
+.doc-link { font-size: 0.72rem; color: var(--cp-link); border: 1px solid var(--cp-border); border-radius: 999px; padding: 0.05rem 0.45rem; margin-left: 0.35rem; }
+.doc-link::before { content: "\1F4C4 "; }
+.pill { display:inline-block; background: var(--cp-surface-soft); border:1px solid var(--cp-border); border-radius:999px; padding:0.1rem 0.55rem; font-size:0.75rem; margin:0 0.25rem 0.25rem 0; }
+
+/* Banner */
+.banner { border-radius: 12px; padding: 0.7rem 1rem; margin-bottom: 1rem; font-size: 0.85rem; border: 1px solid; }
+.banner.promo { background: var(--cp-accent-soft); border-color: var(--cp-accent); color: var(--cp-text); }
+.banner.info { background: var(--cp-surface-soft); border-color: var(--cp-border); }
+.banner.warn { background: rgba(245,158,11,0.12); border-color: var(--cp-warning); }
+
+/* Outcome box */
+.outcome { border-radius: 12px; padding: 1rem 1.1rem; border: 1px solid var(--cp-border); background: var(--cp-surface-soft); }
+.outcome.ok { border-color: var(--cp-success); }
+.outcome.block { border-color: var(--cp-danger); }
+.outcome.meter { border-color: var(--cp-accent); }
+.outcome .headline { font-size: 1.05rem; font-weight: 600; margin-bottom: 0.3rem; }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 0.15rem 0.9rem; font-size: 0.83rem; }
+.kv dt { color: var(--cp-text-muted); }
+.kv dd { margin: 0; }
+
+.event-log { max-height: 340px; overflow-y: auto; }
+.muted { color: var(--cp-text-muted); }
+.right { text-align: right; }
+.nowrap { white-space: nowrap; }
+.hidden { display: none; }
+.themed-toggle { margin-top: 0.5rem; }
+details.rule { border: 1px solid var(--cp-border); border-radius: 10px; padding: 0.5rem 0.75rem; margin-bottom: 0.5rem; }
+details.rule summary { cursor: pointer; font-weight: 600; }
+.excerpt { font-style: italic; color: var(--cp-text-soft); margin: 0.25rem 0; }
+.tag-list { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.section-note { font-size: 0.8rem; color: var(--cp-text-muted); margin-top: -0.4rem; margin-bottom: 0.8rem; }
+
+/* Config sub-navigation (GitHub-style tabs) */
+.subnav { display: flex; gap: 0.25rem; border-bottom: 1px solid var(--cp-border); margin-bottom: 1.2rem; flex-wrap: wrap; }
+.subnav button { background: transparent; border: none; padding: 0.55rem 0.9rem; cursor: pointer; color: var(--cp-text-muted); border-bottom: 2px solid transparent; font: inherit; }
+.subnav button:hover { color: var(--cp-text); }
+.subnav button.active { color: var(--cp-accent); border-bottom-color: var(--cp-accent); font-weight: 600; }
+
+/* Modal */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: flex; align-items: flex-start; justify-content: center; padding: 3rem 1rem; z-index: 50; overflow-y: auto; }
+.modal { background: var(--cp-surface); border: 1px solid var(--cp-border); border-radius: 16px; max-width: 580px; width: 100%; padding: 1.4rem 1.6rem; box-shadow: var(--cp-shadow); }
+.modal h2 { margin-bottom: 1rem; font-size: 1.2rem; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.3rem; }
+.radio-card { display: block; border: 1px solid var(--cp-border); border-radius: 10px; padding: 0.55rem 0.75rem; margin-bottom: 0.45rem; cursor: pointer; }
+.radio-card.selected { border-color: var(--cp-accent); background: var(--cp-accent-soft); }
+.radio-card.disabled { opacity: 0.55; cursor: not-allowed; }
+.radio-card small { display: block; color: var(--cp-text-muted); margin-top: 0.15rem; }
+.readonly-field { padding: 0.45rem 0.6rem; border: 1px dashed var(--cp-border-strong); border-radius: 0.625rem; background: var(--cp-surface-soft); color: var(--cp-text-muted); font-size: 0.85rem; }
+@media (max-width: 780px) {
+  .app { flex-direction: column; }
+  .sidebar { width: 100%; height: auto; position: static; flex-direction: row; flex-wrap: wrap; }
+  .sidebar .spacer { display: none; }
+  .main { padding: 1rem; }
+}
+
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+/*
+ * data.js — Documentation-grounded reference data for the GitHub Copilot
+ * usage-based billing simulator. All prices, constants, and rules cite an
+ * official GitHub Docs / Changelog URL. Verified against live docs on
+ * 2026-07-23. Pure data + no DOM access, so it is safe to load in Node.
+ */
+(function (global) {
+  'use strict';
+
+  // 1 AI credit = $0.01 USD.
+  // Source: docs.github.com/en/copilot/reference/copilot-billing/models-and-pricing
+  var CREDIT_TO_USD = 0.01;
+
+  var CONSTANTS = {
+    CREDIT_TO_USD: CREDIT_TO_USD,
+    CB_INCLUDED_CREDITS: 1900,
+    CE_INCLUDED_CREDITS: 3900,
+    // Promotional pool per seat, June 1 - September 1, 2026 (existing customers).
+    PROMO_CB_CREDITS: 3000,
+    PROMO_CE_CREDITS: 7000,
+    PROMO_START_UTC: '2026-06-01',
+    PROMO_END_UTC: '2026-09-01',
+    ALERT_THRESHOLDS_BUDGET: [0.75, 0.9, 1.0],
+    ALERT_THRESHOLDS_INCLUDED_USAGE: [0.9, 1.0],
+    // Included-usage email alerts are documented ONLY for these products.
+    // Copilot AI credits are intentionally NOT in this list.
+    INCLUDED_USAGE_ALERT_PRODUCTS: [
+      'actions_minutes', 'actions_storage', 'packages_bandwidth', 'packages_storage',
+      'lfs_bandwidth', 'lfs_storage', 'codespaces_core_hours', 'codespaces_storage'
+    ],
+    COST_CENTER_MAX_PER_ENTERPRISE: 500,
+    COST_CENTER_MAX_RESOURCES: 25000,
+    COST_CENTER_MAX_MUTATION_BATCH: 50,
+    MAX_BUDGETS_PER_ACCOUNT: 10000,
+    // Modifiers below are illustrative / not fully documented — see exclusions.
+    AUTO_MODEL_DISCOUNT: 0.10,
+    DATA_RESIDENCY_MULTIPLIER: 1.10
+  };
+
+  // Documentation reference catalog (canonical source list).
+  var DOCS = {
+    'billing-overview': { id: 1, url: 'https://docs.github.com/en/copilot/concepts/billing', title: 'Copilot billing concepts' },
+    'ubb-individuals': { id: 2, url: 'https://docs.github.com/en/copilot/concepts/billing/usage-based-billing-for-individuals', title: 'Usage-based billing for individuals' },
+    'ubb-orgs-ent': { id: 3, url: 'https://docs.github.com/en/copilot/concepts/billing/usage-based-billing-for-organizations-and-enterprises', title: 'Usage-based billing for organizations and enterprises' },
+    'orgs-ent': { id: 4, url: 'https://docs.github.com/en/copilot/concepts/billing/organizations-and-enterprises', title: 'Copilot in organizations and enterprises' },
+    'individual-plans': { id: 5, url: 'https://docs.github.com/en/copilot/concepts/billing/individual-plans', title: 'Individual plans' },
+    'copilot-licenses': { id: 6, url: 'https://docs.github.com/en/billing/concepts/product-billing/github-copilot-licenses', title: 'GitHub Copilot licenses' },
+    'billing-cycle': { id: 7, url: 'https://docs.github.com/en/copilot/reference/copilot-billing/billing-cycle', title: 'Billing cycle' },
+    'models-pricing': { id: 8, url: 'https://docs.github.com/en/copilot/reference/copilot-billing/models-and-pricing', title: 'Models and pricing' },
+    'usage-limits': { id: 9, url: 'https://docs.github.com/en/copilot/concepts/usage-limits', title: 'Usage limits' },
+    'budgets-ubb': { id: 10, url: 'https://docs.github.com/en/copilot/concepts/billing/budgets-for-usage-based-billing', title: 'Budgets for usage-based billing' },
+    'budgets-alerts': { id: 11, url: 'https://docs.github.com/en/billing/concepts/budgets-and-alerts', title: 'Budgets and alerts' },
+    'cost-centers': { id: 12, url: 'https://docs.github.com/en/billing/concepts/cost-centers', title: 'Cost centers' },
+    'cost-center-allocation': { id: 13, url: 'https://docs.github.com/en/billing/reference/cost-center-allocation', title: 'Cost center allocation for different products' },
+    'using-budgets': { id: 14, url: 'https://docs.github.com/billing/managing-your-billing/using-budgets-control-spending', title: 'Using budgets to control spending' },
+    'getting-started-budgets': { id: 15, url: 'https://docs.github.com/en/copilot/tutorials/budgets/getting-started-with-budget-controls', title: 'Getting started with budget controls' },
+    'optimizing-budgets': { id: 16, url: 'https://docs.github.com/en/copilot/tutorials/budgets/optimizing-your-budget-configuration', title: 'Optimizing your budget configuration' },
+    'control-costs-scale': { id: 17, url: 'https://docs.github.com/en/billing/tutorials/control-costs-at-scale', title: 'Control costs at scale' },
+    'soft-budgets': { id: 18, url: 'https://docs.github.com/en/enterprise-cloud@latest/billing/tutorials/soft-budgets', title: 'Start monitoring costs with soft budgets' },
+    'manage-company-spending': { id: 19, url: 'https://docs.github.com/en/copilot/how-tos/manage-and-track-spending/manage-company-spending', title: 'Manage company spending' },
+    'monitor-ai-usage': { id: 20, url: 'https://docs.github.com/en/copilot/how-tos/manage-and-track-spending/monitor-ai-usage', title: 'Monitor AI usage' },
+    'set-session-limit': { id: 21, url: 'https://docs.github.com/copilot/how-tos/copilot-cli/use-copilot-cli/set-session-limit', title: 'Set Copilot CLI session limit' },
+    'billing-reports': { id: 22, url: 'https://docs.github.com/en/billing/reference/billing-reports', title: 'Billing reports reference' },
+    'gather-insights': { id: 23, url: 'https://docs.github.com/en/billing/tutorials/gather-insights', title: 'Gather insights' },
+    'rest-budgets': { id: 24, url: 'https://docs.github.com/en/rest/billing/budgets', title: 'REST API: budgets' },
+    'rest-cost-centers': { id: 25, url: 'https://docs.github.com/en/enterprise-cloud@latest/rest/billing/cost-centers', title: 'REST API: cost centers' },
+    'manage-enterprise-policies': { id: 26, url: 'https://docs.github.com/en/enterprise-cloud@latest/copilot/how-tos/administer-copilot/manage-for-enterprise/manage-enterprise-policies', title: 'Manage enterprise policies' },
+    'set-up-budgets': { id: 36, url: 'https://docs.github.com/en/billing/how-tos/set-up-budgets', title: 'Set up budgets to control spending on metered products' }
+  };
+
+  function ref(key, excerpt) {
+    var d = DOCS[key];
+    if (!d) return { url: '', title: key, excerpt: excerpt || '' };
+    return { key: key, url: d.url, title: d.title, excerpt: excerpt || '' };
+  }
+
+  // Model catalog — copied verbatim from the Models and pricing tables.
+  // Prices are USD per 1,000,000 tokens. Verified 2026-07-23.
+  // Source: DOCS['models-pricing']
+  function m(provider, name, category, tier, threshold, input, cached, output, cacheWrite, status) {
+    return {
+      id: (name + (tier && tier !== 'Default' ? ' (' + tier + ')' : '')).replace(/\s+/g, '-').toLowerCase(),
+      provider: provider, name: name, category: category, tier: tier || 'Default',
+      thresholdInputTokens: threshold, // number or null (Default when model has tiers)
+      inputPricePerMillion: input,
+      cachedInputPricePerMillion: cached,
+      cacheWritePricePerMillion: (cacheWrite === undefined ? null : cacheWrite),
+      outputPricePerMillion: output,
+      releaseStatus: status || 'GA'
+    };
+  }
+
+  var MODELS = [
+    // OpenAI
+    m('OpenAI', 'GPT-5 mini', 'Lightweight', 'Default', null, 0.25, 0.025, 2.00),
+    m('OpenAI', 'GPT-5.3-Codex', 'Powerful', 'Default', null, 1.75, 0.175, 14.00),
+    m('OpenAI', 'GPT-5.4', 'Versatile', 'Default', 272000, 2.50, 0.25, 15.00),
+    m('OpenAI', 'GPT-5.4', 'Versatile', 'Long context', 272000, 5.00, 0.50, 22.50),
+    m('OpenAI', 'GPT-5.4 mini', 'Lightweight', 'Default', null, 0.75, 0.075, 4.50),
+    m('OpenAI', 'GPT-5.4 nano', 'Lightweight', 'Default', null, 0.20, 0.02, 1.25),
+    m('OpenAI', 'GPT-5.5', 'Powerful', 'Default', 272000, 5.00, 0.50, 30.00),
+    m('OpenAI', 'GPT-5.5', 'Powerful', 'Long context', 272000, 10.00, 1.00, 45.00),
+    m('OpenAI', 'GPT-5.6 Luna', 'Lightweight', 'Default', 200000, 1.00, 0.10, 6.00),
+    m('OpenAI', 'GPT-5.6 Luna', 'Lightweight', 'Long context', 200000, 2.00, 0.20, 9.00),
+    m('OpenAI', 'GPT-5.6 Sol', 'Powerful', 'Default', 272000, 5.00, 0.50, 30.00),
+    m('OpenAI', 'GPT-5.6 Sol', 'Powerful', 'Long context', 272000, 10.00, 1.00, 45.00),
+    m('OpenAI', 'GPT-5.6 Terra', 'Versatile', 'Default', 272000, 2.50, 0.25, 15.00),
+    m('OpenAI', 'GPT-5.6 Terra', 'Versatile', 'Long context', 272000, 5.00, 0.50, 22.50),
+    // Anthropic (include cache write)
+    m('Anthropic', 'Claude Haiku 4.5', 'Versatile', 'Default', null, 1.00, 0.10, 5.00, 1.25),
+    m('Anthropic', 'Claude Sonnet 4', 'Versatile', 'Default', null, 3.00, 0.30, 15.00, 3.75),
+    m('Anthropic', 'Claude Sonnet 4.5', 'Versatile', 'Default', null, 3.00, 0.30, 15.00, 3.75),
+    m('Anthropic', 'Claude Sonnet 4.6', 'Versatile', 'Default', null, 3.00, 0.30, 15.00, 3.75),
+    m('Anthropic', 'Claude Opus 4.5', 'Powerful', 'Default', null, 5.00, 0.50, 25.00, 6.25),
+    m('Anthropic', 'Claude Opus 4.6', 'Powerful', 'Default', null, 5.00, 0.50, 25.00, 6.25),
+    m('Anthropic', 'Claude Opus 4.7', 'Powerful', 'Default', null, 5.00, 0.50, 25.00, 6.25),
+    m('Anthropic', 'Claude Opus 4.8', 'Powerful', 'Default', null, 5.00, 0.50, 25.00, 6.25),
+    m('Anthropic', 'Claude Sonnet 5', 'Versatile', 'Default', null, 2.00, 0.20, 10.00, 2.50),
+    m('Anthropic', 'Claude Opus 4.8 (fast mode)', 'Powerful', 'Default', null, 10.00, 1.00, 50.00, 12.50, 'GA (preview)'),
+    m('Anthropic', 'Claude Fable 5', 'Powerful', 'Default', null, 10.00, 1.00, 50.00, 12.50),
+    // Google
+    m('Google', 'Gemini 2.5 Pro', 'Powerful', 'Default', null, 1.25, 0.125, 10.00),
+    m('Google', 'Gemini 3 Flash', 'Lightweight', 'Default', null, 0.50, 0.05, 3.00, undefined, 'Public preview'),
+    m('Google', 'Gemini 3.1 Pro', 'Powerful', 'Default', 200000, 2.00, 0.20, 12.00, undefined, 'Public preview'),
+    m('Google', 'Gemini 3.1 Pro', 'Powerful', 'Long context', 200000, 4.00, 0.40, 18.00, undefined, 'Public preview'),
+    m('Google', 'Gemini 3.5 Flash', 'Lightweight', 'Default', null, 1.50, 0.15, 9.00),
+    m('Google', 'Gemini 3.6 Flash', 'Versatile', 'Default', null, 1.50, 0.15, 7.50),
+    // Fine-tuned (GitHub)
+    m('GitHub', 'Raptor mini', 'Versatile', 'Default', null, 0.25, 0.025, 2.00),
+    // Microsoft
+    m('Microsoft', 'MAI-Code-1-Flash', 'Lightweight', 'Default', null, 0.75, 0.075, 4.50),
+    // Moonshot AI
+    m('Moonshot AI', 'Kimi K2.7 Code', 'Versatile', 'Default', null, 0.95, 0.19, 4.00)
+  ];
+
+  // Features. Only credit-consuming features flow through the engine; code
+  // completions and next edit suggestions are unlimited on paid plans.
+  var FEATURES = [
+    { id: 'copilot_chat', label: 'Copilot Chat', consumesCredits: true },
+    { id: 'copilot_cli', label: 'Copilot CLI', consumesCredits: true },
+    { id: 'cloud_agent', label: 'Copilot coding agent (cloud)', consumesCredits: true },
+    { id: 'copilot_spaces', label: 'Copilot Spaces', consumesCredits: true },
+    { id: 'spark', label: 'Spark', consumesCredits: true },
+    { id: 'third_party_agent', label: 'Third-party coding agent', consumesCredits: true },
+    { id: 'code_review', label: 'Copilot code review', consumesCredits: true },
+    { id: 'code_completions', label: 'Code completions', consumesCredits: false },
+    { id: 'next_edit_suggestions', label: 'Next edit suggestions', consumesCredits: false }
+  ];
+
+  // Rule catalog with traceability. Each rule maps to one or more sources.
+  var RULES = [
+    { id: 'R1-unlimited-completions', title: 'Code completions & next edit suggestions are unlimited',
+      sourceRefs: [ref('ubb-orgs-ent', 'Code completions and next edit suggestions are not billed in AI credits.'), ref('models-pricing', 'They remain unlimited for all paid Copilot plans.')] },
+    { id: 'R2-credit-conversion', title: 'Token cost converts to AI credits at 1 credit = $0.01',
+      sourceRefs: [ref('models-pricing', 'the total is converted into AI credits, where 1 AI credit = $0.01 USD')] },
+    { id: 'R3-model-tier', title: 'Long-context tier prices apply above the input-token threshold',
+      sourceRefs: [ref('models-pricing', 'Models with a Long context tier offer extended capabilities and longer context windows.')] },
+    { id: 'R4-shared-pool', title: 'Each license contributes included credits to one shared pool',
+      sourceRefs: [ref('ubb-orgs-ent', 'per-user GitHub AI Credits allowances that are pooled at the billing entity level'), ref('budgets-ubb', 'Every Copilot license includes AI credits that are pooled across your enterprise.')] },
+    { id: 'R5-pool-timing', title: 'Adding a license grows the pool immediately; removals apply next cycle',
+      sourceRefs: [ref('budgets-ubb', 'increases apply right away ... while decreases take effect at the start of the next billing cycle')] },
+    { id: 'R6-ulb-precedence', title: 'ULB precedence: individual > cost center > universal; always a hard stop',
+      sourceRefs: [ref('budgets-ubb', 'the most specific budget wins ... ULBs always enforce a hard stop; a $0 USD budget blocks the user immediately.')] },
+    { id: 'R7-included-usage-control', title: 'Cost-center included-usage control caps pool draw before metered phase',
+      sourceRefs: [ref('budgets-ubb', 'an included usage control limits how much of the pool a cost center can draw before the metered phase begins'), ref('set-up-budgets', 'block or paid overage when the cap is reached')] },
+    { id: 'R8-included-cap-formula', title: 'Included cap = (#CB × 1,900) + (#CE × 3,900)',
+      sourceRefs: [ref('budgets-ubb', 'Each Copilot Business license adds 1,900 AI credits. Each Copilot Enterprise license adds 3,900 AI credits.')] },
+    { id: 'R9-paid-usage-policy', title: 'Metered usage requires the "AI credit paid usage" policy to be enabled',
+      sourceRefs: [ref('budgets-ubb', 'If this policy is disabled, usage is blocked when the shared pool is exhausted.'), ref('manage-enterprise-policies', '')] },
+    { id: 'R10-metered-order', title: 'Metered budgets evaluate cost center → organization → enterprise',
+      sourceRefs: [ref('budgets-ubb', 'the system checks budget controls in a specific order to decide whether the request is served, metered, or blocked')] },
+    { id: 'R11-hard-stop', title: 'Cost center / org / enterprise budgets hard-stop only when the stop toggle is on',
+      sourceRefs: [ref('budgets-ubb', 'Hard stop? Only if "Stop usage when budget limit is reached" is enabled')] },
+    { id: 'R12-cc-exclusion', title: 'Cost-center exclusion removes a CC\'s charges from the enterprise budget',
+      sourceRefs: [ref('budgets-ubb', 'When a cost center\'s budget is exhausted, only users in that cost center are blocked.'), ref('using-budgets', '')] },
+    { id: 'R13-multi-org-random', title: 'Multi-org seats are billed to one randomly chosen org per cycle',
+      sourceRefs: [ref('budgets-ubb', 'GitHub picks one organization at random each billing cycle to bill the seat.'), ref('orgs-ent', '')] },
+    { id: 'R14-cc-membership', title: 'Cost-center membership: direct > enterprise team (oldest) > organization',
+      sourceRefs: [ref('cost-center-allocation', 'how usage is allocated when more than one assignment applies to a user')] },
+    { id: 'R15-cycle-reset', title: 'Pool, ULB counters, and metered accrual reset at 00:00 UTC on day 1; unused credits are forfeited',
+      sourceRefs: [ref('ubb-orgs-ent', 'How do AI credits work'), ref('billing-cycle', '')] },
+    { id: 'R16-alerts', title: 'Budget alerts fire at 75% / 90% / 100%',
+      sourceRefs: [ref('budgets-alerts', 'Budget threshold alerts fire at 75%, 90%, and 100%.')] },
+    { id: 'R17-cc-limits', title: 'Cost-center limits: 500 per enterprise, 25,000 resources, 50 per batch',
+      sourceRefs: [ref('cost-centers', 'Cost center limits')] },
+    { id: 'R18-scope-immutable', title: 'A budget\'s scope cannot be changed after creation',
+      sourceRefs: [ref('using-budgets', 'edit or delete, but not re-scope'), ref('budgets-alerts', '')] }
+  ];
+
+  // Exclusions ledger — behavior intentionally NOT simulated (or flagged).
+  var EXCLUSIONS = [
+    { title: 'Automatic fallback to a cheaper model when credits/budgets are exhausted', note: 'Docs state there is no automatic fallback.', sourceRefs: [ref('budgets-ubb'), ref('ubb-orgs-ent')] },
+    { title: '90% / 100% included-usage email alerts for Copilot AI credits', note: 'The documented product list is Actions, Packages, LFS, Codespaces — not Copilot AI credits.', sourceRefs: [ref('budgets-alerts')] },
+    { title: 'Guaranteed user-level budget alert delivery', note: 'Docs caution that ULB alerting is not consistently available; the simulator may emit them but shows the caveat.', sourceRefs: [ref('budgets-alerts')] },
+    { title: 'Carry-over / rollover of unused monthly credits', note: 'Unused credits are forfeited at cycle reset; no rollover mechanism exists.', sourceRefs: [ref('ubb-orgs-ent')] },
+    { title: 'Deterministic organization selection for multi-org seats', note: 'GitHub picks an org at random each cycle; modeled as random, no priority ordering.', sourceRefs: [ref('budgets-ubb'), ref('orgs-ent')] },
+    { title: 'Retroactive redistribution when included-usage control toggles mid-cycle', note: 'Enabling does not retroactively redistribute the pool.', sourceRefs: [ref('using-budgets')] },
+    { title: 'Different budgets for teams inside a single cost center', note: 'Listed as a cost-center limitation; separate cost centers are required.', sourceRefs: [ref('cost-centers')] },
+    { title: 'Changing a budget\'s scope after creation', note: 'Docs allow edit / delete but not scope change.', sourceRefs: [ref('using-budgets')] },
+    { title: 'Per-cost-center or per-org model pricing overrides', note: 'Only per-cost-center budgets and included-usage controls are documented.', sourceRefs: [ref('budgets-ubb')] },
+    { title: 'GitHub Enterprise Server (self-hosted) usage-based billing', note: 'Documented behavior is for GitHub Enterprise Cloud; GHES is out of scope.', sourceRefs: [ref('cost-centers'), ref('orgs-ent')] },
+    { title: 'Auto-model selection discount (10%)', note: 'Provided in the source brief without a documentation citation. Included as an optional, clearly-flagged modifier; OFF by default and treated as UNVERIFIED.', sourceRefs: [] },
+    { title: 'Data-residency multiplier (10%)', note: 'Cited to the organizations-and-enterprises concept in the brief but the exact multiplier is not confirmed in current docs. Optional, flagged, OFF by default.', sourceRefs: [ref('orgs-ent')] }
+  ];
+
+  global.SIM_DATA = {
+    CONSTANTS: CONSTANTS,
+    DOCS: DOCS,
+    MODELS: MODELS,
+    FEATURES: FEATURES,
+    RULES: RULES,
+    EXCLUSIONS: EXCLUSIONS,
+    ref: ref
+  };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+/*
+ * engine.js — Pure, deterministic simulation engine for GitHub Copilot
+ * usage-based billing. No DOM access. Every branch maps to a documented rule
+ * (see data.js RULES). Loadable in Node for tests and in the browser bundle.
+ */
+(function (global) {
+  'use strict';
+
+  var DATA = global.SIM_DATA;
+  var C = DATA.CONSTANTS;
+
+  /* ----------------------------- date helpers ----------------------------- */
+  function cycleKeyOf(dateStr) { return String(dateStr).slice(0, 7); }
+
+  function addDays(dateStr, n) {
+    var dt = new Date(dateStr + 'T00:00:00Z');
+    dt.setUTCDate(dt.getUTCDate() + n);
+    return dt.toISOString().slice(0, 10);
+  }
+
+  function nextCycleStart(dateStr) {
+    var y = parseInt(dateStr.slice(0, 4), 10);
+    var mo = parseInt(dateStr.slice(5, 7), 10);
+    mo += 1; if (mo > 12) { mo = 1; y += 1; }
+    return y + '-' + String(mo).padStart(2, '0') + '-01';
+  }
+
+  function isPromo(dateStr) {
+    return dateStr >= C.PROMO_START_UTC && dateStr < C.PROMO_END_UTC;
+  }
+
+  /* ----------------------------- prng (mulberry32) ------------------------ */
+  function hashString(s) {
+    var h = 1779033703 ^ s.length;
+    for (var i = 0; i < s.length; i++) {
+      h = Math.imul(h ^ s.charCodeAt(i), 3432918353);
+      h = (h << 13) | (h >>> 19);
+    }
+    return h >>> 0;
+  }
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      var t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  /* ----------------------------- license credits -------------------------- */
+  function seatPoolCredits(user, dateStr) {
+    var promo = isPromo(dateStr);
+    if (user.licenseType === 'CopilotEnterprise') return promo ? C.PROMO_CE_CREDITS : C.CE_INCLUDED_CREDITS;
+    return promo ? C.PROMO_CB_CREDITS : C.CB_INCLUDED_CREDITS;
+  }
+  function seatIncludedCredits(user) {
+    // Included-usage cap always uses base amounts (not promo).
+    return user.licenseType === 'CopilotEnterprise' ? C.CE_INCLUDED_CREDITS : C.CB_INCLUDED_CREDITS;
+  }
+
+  function totalPoolCredits(state, dateStr) {
+    return state.users.reduce(function (sum, u) { return sum + seatPoolCredits(u, dateStr); }, 0);
+  }
+
+  /* ----------------------------- lookups ---------------------------------- */
+  function findUser(state, id) { return state.users.filter(function (u) { return u.id === id; })[0] || null; }
+  function findOrg(state, id) { return state.organizations.filter(function (o) { return o.id === id; })[0] || null; }
+  function findCostCenter(state, id) { return state.costCenters.filter(function (c) { return c.id === id; })[0] || null; }
+
+  function seatBillingOrg(state, user) {
+    var orgs = user.assigningOrgIds || [];
+    if (orgs.length === 0) return null;
+    if (orgs.length === 1) return orgs[0];
+    var assigned = state.runtime.multiOrgAssignment[user.id];
+    return assigned || orgs[0];
+  }
+
+  // Cost-center membership: direct > enterprise team (oldest) > organization.
+  function resolveCostCenter(state, user) {
+    var direct = state.costCenters.filter(function (c) { return (c.memberUserIds || []).indexOf(user.id) !== -1; });
+    if (direct.length) return { cc: direct[0], via: 'direct' };
+
+    var teams = (state.enterpriseTeams || []).filter(function (t) {
+      return t.costCenterId && (t.memberUserIds || []).indexOf(user.id) !== -1;
+    });
+    if (teams.length) {
+      teams.sort(function (a, b) { return String(a.createdAt).localeCompare(String(b.createdAt)); });
+      var cc = findCostCenter(state, teams[0].costCenterId);
+      if (cc) return { cc: cc, via: 'enterprise team (' + teams[0].name + ', oldest)' };
+    }
+
+    var org = seatBillingOrg(state, user);
+    if (org) {
+      var byOrg = state.costCenters.filter(function (c) { return (c.memberOrgIds || []).indexOf(org) !== -1; });
+      if (byOrg.length) return { cc: byOrg[0], via: 'organization (' + org + ')' };
+    }
+    return { cc: null, via: 'none' };
+  }
+
+  function includedCap(state, cc) {
+    var ids = new Set(cc.memberUserIds || []);
+    (state.enterpriseTeams || []).forEach(function (t) {
+      if (t.costCenterId === cc.id) (t.memberUserIds || []).forEach(function (u) { ids.add(u); });
+    });
+    (cc.memberOrgIds || []).forEach(function (org) {
+      state.users.forEach(function (u) { if ((u.assigningOrgIds || []).indexOf(org) !== -1) ids.add(u.id); });
+    });
+    var cap = 0;
+    ids.forEach(function (uid) { var u = findUser(state, uid); if (u) cap += seatIncludedCredits(u); });
+    return cap;
+  }
+
+  function resolveEffectiveUlb(state, user, cc) {
+    if (user.individualUlbUsd !== null && user.individualUlbUsd !== undefined)
+      return { value: user.individualUlbUsd, type: 'individual', ruleRef: 'R6-ulb-precedence' };
+    if (cc && cc.userLevelBudgetUsd !== null && cc.userLevelBudgetUsd !== undefined)
+      return { value: cc.userLevelBudgetUsd, type: 'cost center', ruleRef: 'R6-ulb-precedence' };
+    var ent = state.enterprise;
+    if (ent.universalUlbUsd !== null && ent.universalUlbUsd !== undefined)
+      return { value: ent.universalUlbUsd, type: 'universal', ruleRef: 'R6-ulb-precedence' };
+    return null;
+  }
+
+  /* ----------------------------- model selection & cost ------------------- */
+  function modelFamilies() {
+    var seen = {}; var out = [];
+    DATA.MODELS.forEach(function (m) { if (!seen[m.name]) { seen[m.name] = true; out.push(m.name); } });
+    return out;
+  }
+
+  function selectModel(name, inputTokens) {
+    var variants = DATA.MODELS.filter(function (m) { return m.name === name; });
+    if (!variants.length) return null;
+    if (variants.length === 1) return variants[0];
+    var def = variants.filter(function (v) { return v.tier === 'Default'; })[0] || variants[0];
+    var lng = variants.filter(function (v) { return v.tier === 'Long context'; })[0];
+    if (lng && def.thresholdInputTokens != null && inputTokens > def.thresholdInputTokens) return lng;
+    return def;
+  }
+
+  function computeCost(state, request) {
+    var model = selectModel(request.modelName, request.inputTokens || 0);
+    if (!model) return null;
+    var inP = model.inputPricePerMillion, cP = model.cachedInputPricePerMillion;
+    var cwP = model.cacheWritePricePerMillion || 0, oP = model.outputPricePerMillion;
+    var baseUsd = ((request.inputTokens || 0) * inP
+      + (request.cachedTokens || 0) * cP
+      + (request.cacheWriteTokens || 0) * cwP
+      + (request.outputTokens || 0) * oP) / 1e6;
+
+    var settings = state.settings || {};
+    var afterDiscount = baseUsd, discountApplied = false;
+    if (settings.enableAutoModelDiscount && request.autoModel) {
+      afterDiscount = baseUsd * (1 - C.AUTO_MODEL_DISCOUNT); discountApplied = true;
+    }
+    var finalUsd = afterDiscount, residencyApplied = false;
+    if (settings.enableDataResidency && request.dataResident) {
+      finalUsd = afterDiscount * C.DATA_RESIDENCY_MULTIPLIER; residencyApplied = true;
+    }
+    var credits = finalUsd / C.CREDIT_TO_USD;
+    return {
+      model: model, baseUsd: baseUsd, afterDiscount: afterDiscount, finalUsd: finalUsd,
+      credits: credits, discountApplied: discountApplied, residencyApplied: residencyApplied
+    };
+  }
+
+  /* ----------------------------- alerts ----------------------------------- */
+  function checkBudgetAlerts(runtime, key, label, scope, consumedUsd, amountUsd, dateStr, caveat) {
+    var out = [];
+    if (!amountUsd || amountUsd <= 0) return out;
+    var ratio = consumedUsd / amountUsd;
+    var fired = runtime.alertsFired[key] || [];
+    C.ALERT_THRESHOLDS_BUDGET.forEach(function (t) {
+      if (ratio >= t - 1e-9 && fired.indexOf(t) === -1) {
+        fired.push(t);
+        out.push({ ts: dateStr, key: key, label: label, scope: scope, threshold: t,
+          ratio: ratio, consumedUsd: consumedUsd, amountUsd: amountUsd, caveat: caveat || null });
+      }
+    });
+    runtime.alertsFired[key] = fired;
+    return out;
+  }
+
+  /* ----------------------------- runtime lifecycle ------------------------ */
+  function freshRuntime(state, dateStr) {
+    var rt = {
+      cycleKey: cycleKeyOf(dateStr),
+      poolTotalCredits: totalPoolCredits(state, dateStr),
+      sharedPoolConsumedCredits: 0,
+      ccIncludedConsumed: {},
+      userConsumedUsd: {},
+      ccMeteredUsd: {},
+      orgMeteredUsd: {},
+      entMeteredUsd: 0,
+      globalMeteredUsd: 0,
+      multiOrgAssignment: {},
+      alertsFired: {}
+    };
+    assignMultiOrg(state, rt, dateStr);
+    return rt;
+  }
+
+  function assignMultiOrg(state, rt, dateStr) {
+    state.users.forEach(function (u) {
+      var orgs = u.assigningOrgIds || [];
+      if (orgs.length > 1) {
+        var rng = mulberry32(hashString((state.meta.seed || 'seed') + ':' + rt.cycleKey + ':' + u.id));
+        var idx = Math.floor(rng() * orgs.length) % orgs.length;
+        rt.multiOrgAssignment[u.id] = orgs[idx];
+      }
+    });
+  }
+
+  // Ensure runtime exists and matches the current cycle. Returns new state if
+  // a reset occurred (unused credits forfeited). Pure: returns a state object.
+  function ensureCycle(state) {
+    var key = cycleKeyOf(state.clock.currentDateUtc);
+    if (state.runtime && state.runtime.cycleKey === key) return state;
+    var next = shallowCloneState(state);
+    next.runtime = freshRuntime(next, next.clock.currentDateUtc);
+    return next;
+  }
+
+  /* ----------------------------- clone helpers ---------------------------- */
+  function shallowCloneState(state) {
+    return {
+      meta: Object.assign({}, state.meta),
+      clock: Object.assign({}, state.clock),
+      settings: Object.assign({}, state.settings),
+      enterprise: state.enterprise,
+      organizations: state.organizations,
+      costCenters: state.costCenters,
+      enterpriseTeams: state.enterpriseTeams,
+      users: state.users,
+      runtime: state.runtime,
+      events: state.events,
+      alerts: state.alerts
+    };
+  }
+  function cloneRuntime(rt) { return JSON.parse(JSON.stringify(rt)); }
+
+  /* ----------------------------- main evaluation -------------------------- */
+  // Returns { state: newState, result }. Does not mutate the input state.
+  function simulateRequest(inState, request) {
+    var state = ensureCycle(inState);
+    var user = findUser(state, request.userId);
+    var now = state.clock.currentDateUtc;
+
+    var base = {
+      ts: now, request: request, userLogin: user ? user.login : request.userId,
+      feature: request.feature, sources: [], events: [], alerts: []
+    };
+
+    var feature = DATA.FEATURES.filter(function (f) { return f.id === request.feature; })[0];
+    if (feature && feature.consumesCredits === false) {
+      var res0 = Object.assign({}, base, {
+        outcome: 'UnlimitedFeature', costCredits: 0, costUsd: 0,
+        message: feature.label + ' is unlimited on paid plans and does not consume AI credits.',
+        ruleRefs: ['R1-unlimited-completions']
+      });
+      return { state: logOnly(state, res0), result: res0 };
+    }
+
+    if (!user) {
+      var resNoUser = Object.assign({}, base, { outcome: 'Error', costCredits: 0, costUsd: 0, message: 'Unknown user.', ruleRefs: [] });
+      return { state: state, result: resNoUser };
+    }
+
+    var cost = computeCost(state, request);
+    if (!cost) {
+      var resNoModel = Object.assign({}, base, { outcome: 'Error', costCredits: 0, costUsd: 0, message: 'Unknown model.', ruleRefs: [] });
+      return { state: state, result: resNoModel };
+    }
+
+    var rt = cloneRuntime(state.runtime);
+    var membership = resolveCostCenter(state, user);
+    var cc = membership.cc;
+    var costUsd = cost.finalUsd;
+    var credits = cost.credits;
+
+    var breakdown = {
+      modelName: cost.model.name, tier: cost.model.tier, provider: cost.model.provider,
+      baseUsd: cost.baseUsd, finalUsd: cost.finalUsd, credits: credits,
+      discountApplied: cost.discountApplied, residencyApplied: cost.residencyApplied,
+      membershipVia: membership.via, costCenter: cc ? cc.name : null
+    };
+
+    // 1) User-level budget (hard stop, pool + metered phases).
+    var ulb = resolveEffectiveUlb(state, user, cc);
+    var priorUserUsd = rt.userConsumedUsd[user.id] || 0;
+    if (ulb) {
+      if (priorUserUsd + costUsd > ulb.value + 1e-9) {
+        var resUlb = Object.assign({}, base, {
+          outcome: 'BlockedByUserLevelBudget', costCredits: credits, costUsd: costUsd, breakdown: breakdown,
+          message: 'Blocked: ' + ulb.type + ' user-level budget of $' + ulb.value.toFixed(2)
+            + ' would be exceeded (used $' + priorUserUsd.toFixed(4) + ' + $' + costUsd.toFixed(4) + ').',
+          ruleRefs: ['R6-ulb-precedence'], ulb: ulb
+        });
+        return { state: appendLog(state, rt, resUlb), result: resUlb };
+      }
+    }
+
+    // 2) Pool phase.
+    var includedControl = cc && cc.includedUsageControl && cc.includedUsageControl.enabled;
+    var servedFromPool = false;
+    var poolInfo = {};
+    if (includedControl) {
+      var cap = includedCap(state, cc);
+      var ccConsumed = rt.ccIncludedConsumed[cc.id] || 0;
+      poolInfo = { mode: 'cost-center included cap', cap: cap, consumed: ccConsumed };
+      if (ccConsumed + credits <= cap + 1e-9) {
+        rt.ccIncludedConsumed[cc.id] = ccConsumed + credits;
+        rt.sharedPoolConsumedCredits += credits;
+        servedFromPool = true;
+      } else if (cc.includedUsageControl.onCapReached === 'block') {
+        rt.userConsumedUsd[user.id] = priorUserUsd; // no consumption
+        var resInc = Object.assign({}, base, {
+          outcome: 'BlockedByIncludedUsageControl', costCredits: credits, costUsd: costUsd, breakdown: breakdown,
+          message: 'Blocked: cost center "' + cc.name + '" reached its AI credit pool cap ('
+            + fmtInt(cap) + ' credits) and is set to block.',
+          ruleRefs: ['R7-included-usage-control', 'R8-included-cap-formula'], poolInfo: poolInfo
+        });
+        return { state: appendLog(state, rt, resInc), result: resInc };
+      }
+      // else paidOverage -> fall through to metered phase.
+    } else {
+      var poolTotal = rt.poolTotalCredits;
+      poolInfo = { mode: 'shared enterprise pool', cap: poolTotal, consumed: rt.sharedPoolConsumedCredits };
+      if (rt.sharedPoolConsumedCredits + credits <= poolTotal + 1e-9) {
+        rt.sharedPoolConsumedCredits += credits;
+        servedFromPool = true;
+      }
+    }
+
+    if (servedFromPool) {
+      rt.userConsumedUsd[user.id] = priorUserUsd + costUsd;
+      var resPool = Object.assign({}, base, {
+        outcome: 'ServedFromPool', costCredits: credits, costUsd: costUsd, breakdown: breakdown,
+        message: 'Served from ' + poolInfo.mode + ' (' + fmtInt(credits) + ' credits). No metered charge.',
+        ruleRefs: ['R4-shared-pool'].concat(includedControl ? ['R7-included-usage-control'] : []),
+        poolInfo: poolInfo, ulb: ulb
+      });
+      // ULB alerts (flagged as not consistently available).
+      if (ulb) resPool.alerts = resPool.alerts.concat(checkBudgetAlerts(rt, 'ulb:' + user.id, ulb.type + ' ULB — ' + user.login, 'user', rt.userConsumedUsd[user.id], ulb.value, now, 'User-level budget alerts are not consistently available.'));
+      commitAlerts(state, resPool);
+      return { state: appendLog(state, rt, resPool), result: resPool };
+    }
+
+    // 3) Metered gate: paid usage policy.
+    if (!state.enterprise.aiCreditPaidUsagePolicyEnabled) {
+      var resPolicy = Object.assign({}, base, {
+        outcome: 'BlockedByPaidUsagePolicyOff', costCredits: credits, costUsd: costUsd, breakdown: breakdown,
+        message: 'Blocked: the shared pool is exhausted and the "AI credit paid usage" policy is disabled.',
+        ruleRefs: ['R9-paid-usage-policy'], poolInfo: poolInfo
+      });
+      return { state: appendLog(state, rt, resPolicy), result: resPolicy };
+    }
+
+    // 4) Metered budgets: cost center -> organization -> enterprise.
+    var applicable = [];
+    if (cc && cc.budget) applicable.push({ scope: 'cost center', key: 'cc:' + cc.id, label: 'Cost center — ' + cc.name,
+      amount: cc.budget.amountUsd, hardStop: !!cc.budget.hardStop, consumed: rt.ccMeteredUsd[cc.id] || 0, applyTo: 'cc:' + cc.id });
+    var billingOrgId = seatBillingOrg(state, user);
+    var billingOrg = billingOrgId ? findOrg(state, billingOrgId) : null;
+    if (billingOrg && billingOrg.budget) applicable.push({ scope: 'organization', key: 'org:' + billingOrg.id, label: 'Organization — ' + billingOrg.name,
+      amount: billingOrg.budget.amountUsd, hardStop: !!billingOrg.budget.hardStop, consumed: rt.orgMeteredUsd[billingOrg.id] || 0, applyTo: 'org:' + billingOrg.id });
+    var entBudget = state.enterprise.enterpriseBudget;
+    var entExcluded = entBudget && entBudget.excludeCostCenters && cc;
+    if (entBudget && !entExcluded) applicable.push({ scope: 'enterprise', key: 'ent', label: 'Enterprise budget',
+      amount: entBudget.amountUsd, hardStop: !!entBudget.hardStop, consumed: rt.entMeteredUsd, applyTo: 'ent' });
+
+    // Determine hard-stop blocks; choose lowest remaining headroom.
+    var blockers = applicable.filter(function (b) { return b.hardStop && (b.consumed + costUsd > b.amount + 1e-9); });
+    if (blockers.length) {
+      blockers.sort(function (a, b) { return (a.amount - a.consumed) - (b.amount - b.consumed); });
+      var blk = blockers[0];
+      var outcomeName = blk.scope === 'cost center' ? 'BlockedByCostCenterBudget'
+        : (blk.scope === 'organization' ? 'BlockedByOrganizationBudget' : 'BlockedByEnterpriseBudget');
+      var resBlk = Object.assign({}, base, {
+        outcome: outcomeName, costCredits: credits, costUsd: costUsd, breakdown: breakdown,
+        message: 'Blocked: ' + blk.label + ' ($' + blk.amount.toFixed(2) + ') is exhausted and "Stop usage when budget limit is reached" is on.',
+        ruleRefs: ['R10-metered-order', 'R11-hard-stop'].concat(entExcluded ? ['R12-cc-exclusion'] : []),
+        appliedBudgets: applicable, blockedBudget: blk, poolInfo: poolInfo
+      });
+      return { state: appendLog(state, rt, resBlk), result: resBlk };
+    }
+
+    // Accrue metered charge to each applicable scope + global + user total.
+    rt.userConsumedUsd[user.id] = priorUserUsd + costUsd;
+    rt.globalMeteredUsd += costUsd;
+    if (cc && cc.budget) rt.ccMeteredUsd[cc.id] = (rt.ccMeteredUsd[cc.id] || 0) + costUsd;
+    if (billingOrg && billingOrg.budget) rt.orgMeteredUsd[billingOrg.id] = (rt.orgMeteredUsd[billingOrg.id] || 0) + costUsd;
+    if (entBudget && !entExcluded) rt.entMeteredUsd += costUsd;
+
+    var resMet = Object.assign({}, base, {
+      outcome: 'MeteredCharged', costCredits: credits, costUsd: costUsd, breakdown: breakdown,
+      message: 'Metered: charged $' + costUsd.toFixed(4) + ' (' + fmtInt(credits) + ' credits) at $0.01/credit.',
+      ruleRefs: ['R9-paid-usage-policy', 'R10-metered-order'].concat(entExcluded ? ['R12-cc-exclusion'] : []),
+      appliedBudgets: applicable, poolInfo: poolInfo, ulb: ulb, softExceed: applicable.filter(function (b) { return !b.hardStop && b.consumed + costUsd > b.amount; })
+    });
+
+    // Alerts for each applicable budget + ULB.
+    applicable.forEach(function (b) {
+      var consumedNow = b.applyTo === 'ent' ? rt.entMeteredUsd : (b.applyTo.indexOf('cc:') === 0 ? rt.ccMeteredUsd[cc.id] : rt.orgMeteredUsd[billingOrg.id]);
+      resMet.alerts = resMet.alerts.concat(checkBudgetAlerts(rt, b.key, b.label, b.scope, consumedNow, b.amount, now, null));
+    });
+    if (ulb) resMet.alerts = resMet.alerts.concat(checkBudgetAlerts(rt, 'ulb:' + user.id, ulb.type + ' ULB — ' + user.login, 'user', rt.userConsumedUsd[user.id], ulb.value, now, 'User-level budget alerts are not consistently available.'));
+
+    return { state: appendLog(state, rt, resMet), result: resMet };
+  }
+
+  /* ----------------------------- log helpers ------------------------------ */
+  function logOnly(state, result) {
+    var next = shallowCloneState(state);
+    next.events = state.events.concat([toEvent(result)]);
+    return next;
+  }
+  function appendLog(state, rt, result) {
+    var next = shallowCloneState(state);
+    next.runtime = rt;
+    next.events = state.events.concat([toEvent(result)]);
+    if (result.alerts && result.alerts.length) next.alerts = state.alerts.concat(result.alerts);
+    return next;
+  }
+  function commitAlerts() { /* alerts already attached to result; appendLog stores them */ }
+  function toEvent(result) {
+    return {
+      ts: result.ts, userLogin: result.userLogin, feature: result.feature,
+      outcome: result.outcome, message: result.message,
+      costCredits: result.costCredits || 0, costUsd: result.costUsd || 0,
+      breakdown: result.breakdown || null, ruleRefs: result.ruleRefs || []
+    };
+  }
+
+  /* ----------------------------- clock advance ---------------------------- */
+  function advanceDays(inState, n) {
+    var state = shallowCloneState(inState);
+    var target = addDays(state.clock.currentDateUtc, n);
+    state.clock = { currentDateUtc: target };
+    return ensureCycle(state);
+  }
+  function jumpToNextCycle(inState) {
+    var state = shallowCloneState(inState);
+    state.clock = { currentDateUtc: nextCycleStart(state.clock.currentDateUtc) };
+    return ensureCycle(state);
+  }
+
+  /* ----------------------------- license changes -------------------------- */
+  // Adding/upgrading a license grows the shared pool immediately (R5).
+  function addUser(inState, user) {
+    var s = shallowCloneState(inState);
+    s.users = inState.users.concat([user]);
+    s = ensureCycle(s);
+    var rt = cloneRuntime(s.runtime);
+    rt.poolTotalCredits += seatPoolCredits(user, s.clock.currentDateUtc);
+    s.runtime = rt;
+    return s;
+  }
+  // Removing/downgrading a license shrinks the pool only at the next cycle (R5):
+  // the current cycle's runtime pool total is intentionally left unchanged.
+  function removeUser(inState, userId) {
+    var s = ensureCycle(inState);
+    s = shallowCloneState(s);
+    s.users = s.users.filter(function (u) { return u.id !== userId; });
+    return s;
+  }
+
+  /* ----------------------------- formatting ------------------------------- */
+  function fmtInt(n) { return Math.round(n).toLocaleString('en-US'); }
+
+  global.SIM_ENGINE = {
+    // lifecycle
+    ensureCycle: ensureCycle, freshRuntime: freshRuntime,
+    advanceDays: advanceDays, jumpToNextCycle: jumpToNextCycle,
+    // core
+    simulateRequest: simulateRequest, computeCost: computeCost, selectModel: selectModel,
+    // resolvers
+    resolveCostCenter: resolveCostCenter, resolveEffectiveUlb: resolveEffectiveUlb,
+    includedCap: includedCap, totalPoolCredits: totalPoolCredits,
+    seatPoolCredits: seatPoolCredits, seatIncludedCredits: seatIncludedCredits,
+    seatBillingOrg: seatBillingOrg, modelFamilies: modelFamilies,
+    // license changes
+    addUser: addUser, removeUser: removeUser,
+    // helpers
+    cycleKeyOf: cycleKeyOf, addDays: addDays, nextCycleStart: nextCycleStart, isPromo: isPromo,
+    findUser: findUser, findOrg: findOrg, findCostCenter: findCostCenter,
+    shallowCloneState: shallowCloneState, fmtInt: fmtInt
+  };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+/*
+ * scenarios.js — Default simulation snapshot and the six documented preset
+ * configurations. Each preset cites the tutorial section it is drawn from.
+ * Pure data/builders; no DOM access.
+ */
+(function (global) {
+  'use strict';
+  var ref = global.SIM_DATA.ref;
+
+  function clone(o) { return JSON.parse(JSON.stringify(o)); }
+
+  function baseUsers() {
+    return [
+      { id: 'u-anna', login: 'anna', licenseType: 'CopilotEnterprise', assigningOrgIds: ['org-eng'], individualUlbUsd: null },
+      { id: 'u-ben', login: 'ben', licenseType: 'CopilotBusiness', assigningOrgIds: ['org-eng'], individualUlbUsd: null },
+      { id: 'u-cara', login: 'cara', licenseType: 'CopilotBusiness', assigningOrgIds: ['org-mkt'], individualUlbUsd: null },
+      { id: 'u-dan', login: 'dan', licenseType: 'CopilotBusiness', assigningOrgIds: ['org-data'], individualUlbUsd: null },
+      { id: 'u-eve', login: 'eve', licenseType: 'CopilotEnterprise', assigningOrgIds: ['org-eng', 'org-data'], individualUlbUsd: null }
+    ];
+  }
+  function baseOrgs() {
+    return [
+      { id: 'org-eng', name: 'Engineering', budget: null },
+      { id: 'org-mkt', name: 'Marketing', budget: null },
+      { id: 'org-data', name: 'Data', budget: null }
+    ];
+  }
+  function baseTeams() {
+    return [
+      { id: 'team-platform', name: 'Platform', memberUserIds: ['u-anna', 'u-ben'], createdAt: '2026-01-05', costCenterId: null }
+    ];
+  }
+
+  function makeEnterprise(extra) {
+    return Object.assign({
+      id: 'ent-acme', name: 'Acme Corp',
+      universalUlbUsd: null,
+      aiCreditPaidUsagePolicyEnabled: true,
+      enterpriseBudget: null
+    }, extra || {});
+  }
+
+  function baseState(extra) {
+    return Object.assign({
+      meta: { version: 1, seed: 'copilot-sim', selectedScenarioId: 'universal-ulb' },
+      clock: { currentDateUtc: '2026-07-23' },
+      settings: { enableAutoModelDiscount: false, enableDataResidency: false },
+      enterprise: makeEnterprise(),
+      organizations: baseOrgs(),
+      costCenters: [],
+      enterpriseTeams: baseTeams(),
+      users: baseUsers(),
+      runtime: null,
+      events: [],
+      alerts: []
+    }, extra || {});
+  }
+
+  /* ------------------------------ presets --------------------------------- */
+  var PRESETS = [
+    {
+      id: 'universal-ulb',
+      name: 'Universal ULB only',
+      description: 'A universal user-level budget with a couple of individual overrides, backed by an enterprise budget with a hard stop.',
+      sourceRefs: [ref('getting-started-budgets', 'Step 1: Manage shared usage responsibly')],
+      build: function () {
+        var s = baseState();
+        s.meta.selectedScenarioId = 'universal-ulb';
+        s.enterprise.universalUlbUsd = 15;
+        s.enterprise.enterpriseBudget = { amountUsd: 500, hardStop: true, excludeCostCenters: false };
+        // Power user override.
+        s.users.filter(function (u) { return u.id === 'u-anna'; })[0].individualUlbUsd = 60;
+        // Restricted user override.
+        s.users.filter(function (u) { return u.id === 'u-cara'; })[0].individualUlbUsd = 5;
+        return s;
+      }
+    },
+    {
+      id: 'business-unit-cc',
+      name: 'Business-unit cost centers with included-usage control',
+      description: 'Cost centers per organization, each with an included-usage control (AI credit pool cap) plus a cost-center budget, and an enterprise-budget failsafe with a hard stop.',
+      sourceRefs: [ref('optimizing-budgets', 'Budget by business unit')],
+      build: function () {
+        var s = baseState();
+        s.meta.selectedScenarioId = 'business-unit-cc';
+        s.enterprise.universalUlbUsd = 20;
+        s.enterprise.enterpriseBudget = { amountUsd: 1000, hardStop: true, excludeCostCenters: false };
+        s.costCenters = [
+          { id: 'cc-eng', name: 'Engineering BU', memberOrgIds: ['org-eng'], memberUserIds: [],
+            budget: { amountUsd: 400, hardStop: true }, userLevelBudgetUsd: null,
+            includedUsageControl: { enabled: true, onCapReached: 'paidOverage' } },
+          { id: 'cc-data', name: 'Data BU', memberOrgIds: ['org-data'], memberUserIds: [],
+            budget: { amountUsd: 200, hardStop: true }, userLevelBudgetUsd: null,
+            includedUsageControl: { enabled: true, onCapReached: 'block' } }
+        ];
+        return s;
+      }
+    },
+    {
+      id: 'per-team-cculb',
+      name: 'Per-team CCULB with individual overrides',
+      description: 'Cost centers with directly assigned users, a cost-center user-level budget per department, occasional individual overrides, and an enterprise-budget failsafe.',
+      sourceRefs: [ref('optimizing-budgets', 'Differentiate per-user limits by team')],
+      build: function () {
+        var s = baseState();
+        s.meta.selectedScenarioId = 'per-team-cculb';
+        s.enterprise.universalUlbUsd = 10;
+        s.enterprise.enterpriseBudget = { amountUsd: 800, hardStop: true, excludeCostCenters: false };
+        s.costCenters = [
+          { id: 'cc-eng', name: 'Engineering', memberOrgIds: [], memberUserIds: ['u-anna', 'u-ben', 'u-eve'],
+            budget: null, userLevelBudgetUsd: 20, includedUsageControl: null },
+          { id: 'cc-mkt', name: 'Marketing', memberOrgIds: [], memberUserIds: ['u-cara'],
+            budget: null, userLevelBudgetUsd: 5, includedUsageControl: null }
+        ];
+        s.users.filter(function (u) { return u.id === 'u-anna'; })[0].individualUlbUsd = 75; // power user override
+        return s;
+      }
+    },
+    {
+      id: 'power-users',
+      name: 'Power users within business units',
+      description: 'Cost centers per organization, a universal ULB, individual overrides for power users, cost-center budgets, and an enterprise-budget failsafe with a hard stop.',
+      sourceRefs: [ref('optimizing-budgets', 'Power users within business units')],
+      build: function () {
+        var s = baseState();
+        s.meta.selectedScenarioId = 'power-users';
+        s.enterprise.universalUlbUsd = 15;
+        s.enterprise.enterpriseBudget = { amountUsd: 1200, hardStop: true, excludeCostCenters: false };
+        s.costCenters = [
+          { id: 'cc-eng', name: 'Engineering BU', memberOrgIds: ['org-eng'], memberUserIds: [],
+            budget: { amountUsd: 600, hardStop: true }, userLevelBudgetUsd: null, includedUsageControl: null },
+          { id: 'cc-data', name: 'Data BU', memberOrgIds: ['org-data'], memberUserIds: [],
+            budget: { amountUsd: 300, hardStop: true }, userLevelBudgetUsd: null, includedUsageControl: null }
+        ];
+        s.users.filter(function (u) { return u.id === 'u-anna'; })[0].individualUlbUsd = 100;
+        s.users.filter(function (u) { return u.id === 'u-eve'; })[0].individualUlbUsd = 80;
+        return s;
+      }
+    },
+    {
+      id: 'delegated-org',
+      name: 'Delegated organization budgets',
+      description: 'Organization budgets delegated to org owners, with an enterprise-budget failsafe and a hard stop.',
+      sourceRefs: [ref('optimizing-budgets', 'Delegating control to organization owners')],
+      build: function () {
+        var s = baseState();
+        s.meta.selectedScenarioId = 'delegated-org';
+        s.enterprise.universalUlbUsd = 12;
+        s.enterprise.enterpriseBudget = { amountUsd: 900, hardStop: true, excludeCostCenters: false };
+        s.organizations.filter(function (o) { return o.id === 'org-eng'; })[0].budget = { amountUsd: 300, hardStop: true };
+        s.organizations.filter(function (o) { return o.id === 'org-mkt'; })[0].budget = { amountUsd: 100, hardStop: true };
+        s.organizations.filter(function (o) { return o.id === 'org-data'; })[0].budget = { amountUsd: 200, hardStop: true };
+        return s;
+      }
+    },
+    {
+      id: 'soft-budgets',
+      name: 'Soft budgets (alert-only)',
+      description: 'Budgets with the stop toggle OFF for an observation-only rollout: usage accrues past the limit and only fires alerts.',
+      sourceRefs: [ref('soft-budgets', 'Start monitoring costs with soft budgets')],
+      build: function () {
+        var s = baseState();
+        s.meta.selectedScenarioId = 'soft-budgets';
+        s.enterprise.universalUlbUsd = 25;
+        s.enterprise.enterpriseBudget = { amountUsd: 300, hardStop: false, excludeCostCenters: false };
+        s.costCenters = [
+          { id: 'cc-eng', name: 'Engineering BU', memberOrgIds: ['org-eng'], memberUserIds: [],
+            budget: { amountUsd: 100, hardStop: false }, userLevelBudgetUsd: null, includedUsageControl: null }
+        ];
+        return s;
+      }
+    }
+  ];
+
+  function buildPreset(id) {
+    var p = PRESETS.filter(function (x) { return x.id === id; })[0] || PRESETS[0];
+    return p.build();
+  }
+
+  global.SIM_SCENARIOS = {
+    presets: PRESETS,
+    build: buildPreset,
+    initial: function () { return buildPreset('universal-ulb'); },
+    clone: clone
+  };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+/*
+ * ui.js — Vanilla-JS single-page interface for the Copilot billing simulator.
+ * Views: Overview, Configuration, Simulator, Alerts & Reports, Documentation.
+ * Includes LocalStorage persistence, JSON import/export, CSV report exports,
+ * and downloadable traceability/exclusions. No frameworks, no network calls.
+ */
+(function () {
+  'use strict';
+  var DATA = window.SIM_DATA, E = window.SIM_ENGINE, SC = window.SIM_SCENARIOS, C = DATA.CONSTANTS;
+  var STORAGE_KEY = 'gh-copilot-billing-sim.v1';
+
+  /* --------------------------------- state -------------------------------- */
+  var state = load() || SC.initial();
+  state = E.ensureCycle(state);
+  var activeView = 'overview';
+  var lastResult = null;
+  var configTab = 'budgets';
+  var budgetModal = null;
+  var sim = {
+    userId: state.users[0] ? state.users[0].id : '',
+    feature: 'copilot_chat', modelName: 'GPT-5 mini',
+    inputTokens: 8000, cachedTokens: 0, cacheWriteTokens: 0, outputTokens: 2000,
+    autoModel: false, dataResident: false
+  };
+
+  function load() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return null;
+      var obj = JSON.parse(raw);
+      if (obj && obj.__v === 1 && obj.state) return obj.state;
+    } catch (e) { /* ignore corrupt storage */ }
+    return null;
+  }
+  function persist() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ __v: 1, state: state })); } catch (e) { /* quota */ }
+  }
+  function commit(ns) { state = ns; persist(); render(); }
+  function editState(fn) { var ns = SC.clone(state); ns.runtime = null; fn(ns); ns = E.ensureCycle(ns); commit(ns); }
+
+  /* ------------------------------- dom helpers ---------------------------- */
+  function h(tag, attrs) {
+    var e = document.createElement(tag);
+    if (attrs) for (var k in attrs) {
+      var v = attrs[k];
+      if (v == null) continue;
+      if (k === 'class') e.className = v;
+      else if (k === 'html') e.innerHTML = v;
+      else if (k.slice(0, 2) === 'on' && typeof v === 'function') e.addEventListener(k.slice(2).toLowerCase(), v);
+      else if (k === 'value') e.value = v;
+      else if (k === 'checked') e.checked = !!v;
+      else e.setAttribute(k, v);
+    }
+    for (var i = 2; i < arguments.length; i++) append(e, arguments[i]);
+    return e;
+  }
+  function append(e, c) {
+    if (c == null || c === false) return;
+    if (Array.isArray(c)) { c.forEach(function (x) { append(e, x); }); return; }
+    if (typeof c === 'string' || typeof c === 'number') { e.appendChild(document.createTextNode(String(c))); return; }
+    e.appendChild(c);
+  }
+  function clear(e) { while (e.firstChild) e.removeChild(e.firstChild); }
+
+  /* ------------------------------- formatters ----------------------------- */
+  function usd(n) { return '$' + (Number(n) || 0).toFixed(2); }
+  function usd4(n) { return '$' + (Number(n) || 0).toFixed(4); }
+  function credits(n) { return E.fmtInt(n) + ' cr'; }
+  function pct(r) { return Math.round(r * 100) + '%'; }
+  function parseNum(v) { return v === '' || v == null ? null : Number(v); }
+
+  function docChip(key) {
+    var d = DATA.DOCS[key]; if (!d) return null;
+    return h('a', { class: 'doc-link', href: d.url, target: '_blank', rel: 'noopener', title: d.title }, 'Docs');
+  }
+  function ruleChips(refs) {
+    if (!refs) return null;
+    return refs.map(function (r) { return r.key ? docChip(r.key) : null; });
+  }
+
+  /* --------------------------------- overview ----------------------------- */
+  function viewOverview() {
+    var rt = state.runtime;
+    var poolTotal = rt.poolTotalCredits;
+    var poolUsed = rt.sharedPoolConsumedCredits;
+    var poolRatio = poolTotal ? poolUsed / poolTotal : 0;
+    var seatsCB = state.users.filter(function (u) { return u.licenseType === 'CopilotBusiness'; }).length;
+    var seatsCE = state.users.filter(function (u) { return u.licenseType === 'CopilotEnterprise'; }).length;
+    var promo = E.isPromo(state.clock.currentDateUtc);
+
+    var wrap = h('div', null);
+    if (promo) wrap.appendChild(h('div', { class: 'banner promo' },
+      'Promotional pool active (' + C.PROMO_START_UTC + ' → ' + C.PROMO_END_UTC + '): ' +
+      C.PROMO_CB_CREDITS + ' credits per Business seat and ' + C.PROMO_CE_CREDITS +
+      ' per Enterprise seat. The included-usage cap still uses the base 1,900 / 3,900 amounts.', docChip('models-pricing')));
+
+    // Stat tiles
+    var tiles = h('div', { class: 'grid cols-4' },
+      stat('Billing cycle', state.runtime.cycleKey, 'Today: ' + state.clock.currentDateUtc, docChip('billing-cycle')),
+      stat('Shared pool', credits(poolTotal), seatsCB + ' Business + ' + seatsCE + ' Enterprise seats', docChip('budgets-ubb')),
+      stat('Pool remaining', credits(Math.max(0, poolTotal - poolUsed)), pct(poolRatio) + ' consumed'),
+      stat('Metered this cycle', usd(rt.globalMeteredUsd), 'AI credit paid usage')
+    );
+    wrap.appendChild(tiles);
+
+    // Pool bar
+    var barCls = poolRatio >= 1 ? 'bar danger' : (poolRatio >= 0.9 ? 'bar warn' : 'bar');
+    wrap.appendChild(h('div', { class: 'card' },
+      h('h3', null, 'Included AI credit pool ', docChip('ubb-orgs-ent')),
+      h('div', { class: 'muted', style: 'font-size:0.83rem' }, credits(poolUsed) + ' of ' + credits(poolTotal) + ' used'),
+      h('div', { class: barCls }, h('span', { style: 'width:' + Math.min(100, poolRatio * 100) + '%' }))
+    ));
+
+    // Policies
+    wrap.appendChild(h('div', { class: 'card' },
+      h('h3', null, 'Active policies & controls ', docChip('manage-enterprise-policies')),
+      h('div', { class: 'grid cols-3' },
+        kvTile('AI credit paid usage', state.enterprise.aiCreditPaidUsagePolicyEnabled ? badge('Enabled', 'ok') : badge('Disabled', 'block')),
+        kvTile('Universal ULB', state.enterprise.universalUlbUsd == null ? badge('None', 'neutral') : usd(state.enterprise.universalUlbUsd)),
+        kvTile('Enterprise budget', state.enterprise.enterpriseBudget ? (usd(state.enterprise.enterpriseBudget.amountUsd) + ' ' + (state.enterprise.enterpriseBudget.hardStop ? badge('hard stop', 'block') : badge('alert only', 'warn'))) : badge('None', 'neutral')),
+        kvTile('Auto-model discount', state.settings.enableAutoModelDiscount ? badge('On (unverified)', 'warn') : badge('Off', 'neutral')),
+        kvTile('Data residency ×1.10', state.settings.enableDataResidency ? badge('On (unverified)', 'warn') : badge('Off', 'neutral')),
+        kvTile('Scenario', state.meta.selectedScenarioId)
+      )
+    ));
+
+    // Budgets summary
+    var budgetRows = collectBudgets();
+    wrap.appendChild(h('div', { class: 'card' },
+      h('h3', null, 'Metered budgets & headroom ', docChip('budgets-ubb')),
+      h('div', { class: 'section-note' }, 'Consumption reflects metered (paid) usage in the current cycle only.'),
+      budgetRows.length ? budgetTable(budgetRows) : h('p', { class: 'muted' }, 'No metered budgets configured.')
+    ));
+
+    // Cost-center caps
+    if (state.costCenters.length) {
+      wrap.appendChild(h('div', { class: 'card' },
+        h('h3', null, 'Cost-center included-usage caps ', docChip('budgets-ubb')),
+        ccCapTable()
+      ));
+    }
+    return wrap;
+  }
+
+  function collectBudgets() {
+    var rt = state.runtime, rows = [];
+    state.costCenters.forEach(function (cc) {
+      if (cc.budget) rows.push({ scope: 'Cost center', name: cc.name, amount: cc.budget.amountUsd, used: rt.ccMeteredUsd[cc.id] || 0, hard: cc.budget.hardStop });
+    });
+    state.organizations.forEach(function (o) {
+      if (o.budget) rows.push({ scope: 'Organization', name: o.name, amount: o.budget.amountUsd, used: rt.orgMeteredUsd[o.id] || 0, hard: o.budget.hardStop });
+    });
+    if (state.enterprise.enterpriseBudget) rows.push({ scope: 'Enterprise', name: state.enterprise.name, amount: state.enterprise.enterpriseBudget.amountUsd, used: rt.entMeteredUsd, hard: state.enterprise.enterpriseBudget.hardStop });
+    return rows;
+  }
+  function budgetTable(rows) {
+    return h('div', { class: 'table-wrap' }, h('table', null,
+      h('thead', null, h('tr', null, ['Scope', 'Name', 'Limit', 'Used', 'Headroom', 'Stop', 'Utilization'].map(function (t) { return h('th', null, t); }))),
+      h('tbody', null, rows.map(function (r) {
+        var ratio = r.amount ? r.used / r.amount : 0;
+        var barCls = ratio >= 1 ? 'bar danger' : (ratio >= 0.9 ? 'bar warn' : 'bar');
+        return h('tr', null,
+          h('td', null, r.scope), h('td', null, r.name),
+          h('td', { class: 'nowrap' }, usd(r.amount)),
+          h('td', { class: 'nowrap' }, usd(r.used)),
+          h('td', { class: 'nowrap' }, usd(Math.max(0, r.amount - r.used))),
+          h('td', null, r.hard ? badge('hard', 'block') : badge('soft', 'warn')),
+          h('td', null, h('div', { class: barCls, style: 'min-width:90px' }, h('span', { style: 'width:' + Math.min(100, ratio * 100) + '%' })), h('small', null, ' ' + pct(ratio)))
+        );
+      }))
+    ));
+  }
+  function ccCapTable() {
+    var rt = state.runtime;
+    return h('div', { class: 'table-wrap' }, h('table', null,
+      h('thead', null, h('tr', null, ['Cost center', 'Included control', 'Cap (credits)', 'Consumed', 'On cap reached'].map(function (t) { return h('th', null, t); }))),
+      h('tbody', null, state.costCenters.map(function (cc) {
+        var enabled = cc.includedUsageControl && cc.includedUsageControl.enabled;
+        return h('tr', null,
+          h('td', null, cc.name),
+          h('td', null, enabled ? badge('Enabled', 'ok') : badge('Off', 'neutral')),
+          h('td', { class: 'nowrap' }, enabled ? credits(E.includedCap(state, cc)) : '—'),
+          h('td', { class: 'nowrap' }, enabled ? credits(rt.ccIncludedConsumed[cc.id] || 0) : '—'),
+          h('td', null, enabled ? cc.includedUsageControl.onCapReached : '—')
+        );
+      }))
+    ));
+  }
+
+  /* --------------------------------- simulator ---------------------------- */
+  function viewSimulator() {
+    var wrap = h('div', null);
+
+    // Time travel
+    wrap.appendChild(h('div', { class: 'card' },
+      h('h3', null, 'Time travel ', docChip('billing-cycle')),
+      h('div', { class: 'row' },
+        h('div', null, h('strong', null, 'Current date: '), state.clock.currentDateUtc, ' ', h('span', { class: 'muted' }, '(cycle ' + state.runtime.cycleKey + ')')),
+        h('div', { class: 'btn-row' },
+          h('button', { class: 'btn ghost small', onclick: function () { commit(E.advanceDays(state, 1)); } }, '+1 day'),
+          h('button', { class: 'btn ghost small', onclick: function () { commit(E.advanceDays(state, 7)); } }, '+7 days'),
+          h('button', { class: 'btn ghost small', onclick: function () { commit(E.jumpToNextCycle(state)); } }, 'Next cycle ▸ (forfeits credits)')
+        )
+      )
+    ));
+
+    // Request builder
+    var userOpts = state.users.map(function (u) { return opt(u.id, u.login + ' (' + shortLic(u.licenseType) + ')', u.id === sim.userId); });
+    var featOpts = DATA.FEATURES.map(function (f) { return opt(f.id, f.label + (f.consumesCredits ? '' : ' — unlimited'), f.id === sim.feature); });
+    var modelOpts = E.modelFamilies().map(function (m) { return opt(m, m, m === sim.modelName); });
+
+    wrap.appendChild(h('div', { class: 'card' },
+      h('h3', null, 'Request builder ', docChip('models-pricing')),
+      h('div', { class: 'row' },
+        field('User', h('select', { onchange: function (e) { sim.userId = e.target.value; } }, userOpts)),
+        field('Feature', h('select', { onchange: function (e) { sim.feature = e.target.value; renderOutcomePreview(); } }, featOpts)),
+        field('Model', h('select', { onchange: function (e) { sim.modelName = e.target.value; renderOutcomePreview(); } }, modelOpts))
+      ),
+      h('div', { class: 'row' },
+        field('Input tokens', numInput('inputTokens')),
+        field('Cached input tokens', numInput('cachedTokens')),
+        field('Cache-write tokens', numInput('cacheWriteTokens')),
+        field('Output tokens', numInput('outputTokens'))
+      ),
+      h('div', { class: 'row' },
+        h('label', { class: 'inline' }, h('input', { type: 'checkbox', checked: sim.autoModel, onchange: function (e) { sim.autoModel = e.target.checked; renderOutcomePreview(); } }), ' Auto-model selection'),
+        h('label', { class: 'inline' }, h('input', { type: 'checkbox', checked: sim.dataResident, onchange: function (e) { sim.dataResident = e.target.checked; renderOutcomePreview(); } }), ' Data-resident request'),
+        h('div', { class: 'right' }, h('button', { class: 'btn', onclick: runSimulate }, 'Simulate request ▸'))
+      ),
+      h('div', { id: 'cost-preview', class: 'muted', style: 'margin-top:0.5rem;font-size:0.83rem' })
+    ));
+
+    // Outcome
+    wrap.appendChild(h('div', { id: 'outcome-slot' }, lastResult ? outcomeCard(lastResult) : h('div', { class: 'card muted' }, 'Run a request to see the evaluated outcome, the applied budget chain, and documentation sources.')));
+
+    // Event log
+    wrap.appendChild(h('div', { class: 'card' },
+      h('div', { class: 'view-header' }, h('h3', null, 'Event log'), h('button', { class: 'btn ghost small', onclick: function () { editStatePreserveClock(function (ns) { ns.events = []; }); } }, 'Clear log')),
+      eventLogTable()
+    ));
+
+    setTimeout(renderOutcomePreview, 0);
+    return wrap;
+  }
+
+  function numInput(key) {
+    return h('input', { type: 'number', min: '0', value: sim[key], onchange: function (e) { sim[key] = Number(e.target.value) || 0; renderOutcomePreview(); } });
+  }
+  function renderOutcomePreview() {
+    var slot = document.getElementById('cost-preview'); if (!slot) return;
+    var feat = DATA.FEATURES.filter(function (f) { return f.id === sim.feature; })[0];
+    if (feat && !feat.consumesCredits) { slot.textContent = feat.label + ' is unlimited and never draws credits.'; return; }
+    var cost = E.computeCost(state, buildRequest());
+    if (!cost) { slot.textContent = ''; return; }
+    slot.textContent = 'Estimated cost: ' + usd4(cost.finalUsd) + ' = ' + credits(cost.credits) +
+      ' • model tier: ' + cost.model.tier + (cost.discountApplied ? ' • auto-discount applied' : '') + (cost.residencyApplied ? ' • residency ×1.10' : '');
+  }
+  function buildRequest() {
+    return { userId: sim.userId, feature: sim.feature, modelName: sim.modelName,
+      inputTokens: sim.inputTokens, cachedTokens: sim.cachedTokens, cacheWriteTokens: sim.cacheWriteTokens,
+      outputTokens: sim.outputTokens, autoModel: sim.autoModel, dataResident: sim.dataResident };
+  }
+  function runSimulate() {
+    var out = E.simulateRequest(state, buildRequest());
+    lastResult = out.result;
+    commit(out.state);
+  }
+  function outcomeCard(r) {
+    var kind = r.outcome === 'MeteredCharged' ? 'meter' : (r.outcome.indexOf('Blocked') === 0 || r.outcome === 'Error' ? 'block' : 'ok');
+    var box = h('div', { class: 'outcome ' + kind },
+      h('div', { class: 'headline' }, outcomeBadge(r.outcome), ' ', humanOutcome(r.outcome)),
+      h('p', null, r.message)
+    );
+    var kv = h('dl', { class: 'kv' });
+    function add(k, v) { if (v == null) return; kv.appendChild(h('dt', null, k)); kv.appendChild(h('dd', null, v)); }
+    add('User', r.userLogin);
+    add('Feature', (DATA.FEATURES.filter(function (f) { return f.id === r.feature; })[0] || {}).label || r.feature);
+    if (r.breakdown) {
+      add('Model', r.breakdown.modelName + ' (' + r.breakdown.tier + ', ' + r.breakdown.provider + ')');
+      add('Cost', usd4(r.breakdown.finalUsd) + ' = ' + credits(r.breakdown.credits));
+      add('Cost center', r.breakdown.costCenter ? r.breakdown.costCenter + ' — via ' + r.breakdown.membershipVia : 'none');
+    }
+    if (r.ulb) add('Effective ULB', usd(r.ulb.value) + ' (' + r.ulb.type + ')');
+    if (r.poolInfo && r.poolInfo.mode) add('Pool phase', r.poolInfo.mode + ' — ' + credits(r.poolInfo.consumed) + ' / ' + credits(r.poolInfo.cap));
+    box.appendChild(kv);
+    if (r.appliedBudgets && r.appliedBudgets.length) {
+      box.appendChild(h('div', { style: 'margin-top:0.6rem' }, h('strong', null, 'Applied budget chain: '),
+        r.appliedBudgets.map(function (b) { return h('span', { class: 'pill' }, b.label + ' (' + usd(b.amount) + (b.hardStop ? ', hard' : ', soft') + ')'); })));
+    }
+    if (r.ruleRefs && r.ruleRefs.length) {
+      box.appendChild(h('div', { style: 'margin-top:0.6rem' }, h('strong', null, 'Rules: '),
+        r.ruleRefs.map(function (id) { return h('span', { class: 'pill' }, id); }),
+        ruleRefsDocChips(r.ruleRefs)));
+    }
+    return h('div', { class: 'card' }, box);
+  }
+  function ruleRefsDocChips(ruleRefs) {
+    var chips = [];
+    ruleRefs.forEach(function (id) {
+      var rule = DATA.RULES.filter(function (x) { return x.id === id; })[0];
+      if (rule) ruleChips(rule.sourceRefs).forEach(function (c) { if (c) chips.push(c); });
+    });
+    return chips.slice(0, 4);
+  }
+  function eventLogTable() {
+    if (!state.events.length) return h('p', { class: 'muted' }, 'No events yet.');
+    var rows = state.events.slice().reverse().slice(0, 100);
+    return h('div', { class: 'table-wrap event-log' }, h('table', null,
+      h('thead', null, h('tr', null, ['Date', 'User', 'Feature', 'Outcome', 'Credits', 'USD'].map(function (t) { return h('th', null, t); }))),
+      h('tbody', null, rows.map(function (ev) {
+        return h('tr', null,
+          h('td', { class: 'nowrap' }, ev.ts),
+          h('td', null, ev.userLogin),
+          h('td', null, (DATA.FEATURES.filter(function (f) { return f.id === ev.feature; })[0] || {}).label || ev.feature),
+          h('td', null, outcomeBadge(ev.outcome)),
+          h('td', { class: 'nowrap right' }, ev.costCredits ? E.fmtInt(ev.costCredits) : '0'),
+          h('td', { class: 'nowrap right' }, usd4(ev.costUsd))
+        );
+      }))
+    ));
+  }
+  function renderOutcomePreviewSlotUpdate() { /* placeholder */ }
+
+  /* ------------------------------ configuration --------------------------- */
+  // Mirrors GitHub's "Billing & Licensing" sub-pages.
+  function viewConfig() {
+    var TABS = [
+      { id: 'budgets', label: 'Budgets and alerts' },
+      { id: 'costcenters', label: 'Cost centers' },
+      { id: 'licensing', label: 'Licensing' },
+      { id: 'policies', label: 'Policies' },
+      { id: 'presets', label: 'Scenario presets' }
+    ];
+    var wrap = h('div', null);
+    wrap.appendChild(h('div', { class: 'subnav' }, TABS.map(function (t) {
+      return h('button', { class: configTab === t.id ? 'active' : '', onclick: function () { configTab = t.id; render(); } }, t.label);
+    })));
+    var body = configTab === 'costcenters' ? configCostCenters()
+      : configTab === 'licensing' ? configLicensing()
+      : configTab === 'policies' ? configPolicies()
+      : configTab === 'presets' ? configPresets()
+      : configBudgets();
+    wrap.appendChild(body);
+    return wrap;
+  }
+
+  function presetDesc(id) { var p = SC.presets.filter(function (x) { return x.id === id; })[0]; return p ? p.description : ''; }
+
+  function usersTable() {
+    return h('div', { class: 'table-wrap' }, h('table', null,
+      h('thead', null, h('tr', null, ['Member', 'Plan', 'Organizations', ''].map(function (t) { return h('th', null, t); }))),
+      h('tbody', null, state.users.map(function (u, i) {
+        return h('tr', null,
+          h('td', null, textInput(u.login, function (v) { editState(function (ns) { ns.users[i].login = v; }); })),
+          h('td', null, h('select', { onchange: function (e) { var v = e.target.value; editState(function (ns) { ns.users[i].licenseType = v; }); } },
+            opt('CopilotBusiness', 'Copilot Business', u.licenseType === 'CopilotBusiness'), opt('CopilotEnterprise', 'Copilot Enterprise', u.licenseType === 'CopilotEnterprise'))),
+          h('td', null, orgCheckboxes(u.assigningOrgIds, function (ids) { editState(function (ns) { ns.users[i].assigningOrgIds = ids; }); })),
+          h('td', null, h('button', { class: 'btn ghost small', onclick: function () { editState(function (ns) { ns.users.splice(i, 1); }); } }, 'Remove'))
+        );
+      }))
+    ));
+  }
+  function orgCheckboxes(selected, onChange) {
+    var box = h('div', { class: 'tag-list' });
+    state.organizations.forEach(function (o) {
+      var checked = (selected || []).indexOf(o.id) !== -1;
+      box.appendChild(h('label', { class: 'inline', style: 'font-size:0.78rem' },
+        h('input', { type: 'checkbox', checked: checked, onchange: function (e) {
+          var ids = (selected || []).slice();
+          if (e.target.checked) { if (ids.indexOf(o.id) === -1) ids.push(o.id); } else { ids = ids.filter(function (x) { return x !== o.id; }); }
+          onChange(ids);
+        } }), ' ' + o.name));
+    });
+    return box;
+  }
+  function organizationsCard() {
+    return h('div', { class: 'card' },
+      h('div', { class: 'view-header' }, h('h3', null, 'Organizations ', docChip('orgs-ent')),
+        h('button', { class: 'btn ghost small', onclick: addOrg }, 'Add organization')),
+      h('div', { class: 'section-note' }, 'Organizations group members and can be referenced by cost centers and budgets.'),
+      h('div', { class: 'table-wrap' }, h('table', null,
+        h('thead', null, h('tr', null, ['Name', 'Members', ''].map(function (t) { return h('th', null, t); }))),
+        h('tbody', null, state.organizations.map(function (o, i) {
+          var members = state.users.filter(function (u) { return (u.assigningOrgIds || []).indexOf(o.id) !== -1; }).length;
+          return h('tr', null,
+            h('td', null, textInput(o.name, function (v) { editState(function (ns) { ns.organizations[i].name = v; }); })),
+            h('td', { class: 'nowrap' }, members + ' seat' + (members === 1 ? '' : 's')),
+            h('td', null, h('button', { class: 'btn ghost small', onclick: function () { editState(function (ns) { ns.organizations.splice(i, 1); }); } }, 'Remove'))
+          );
+        }))
+      ))
+    );
+  }
+  function costCenterEditor(cc, i) {
+    var control = cc.includedUsageControl || { enabled: false, onCapReached: 'paidOverage' };
+    return h('div', { class: 'card', style: 'background:var(--cp-surface-soft)' },
+      h('div', { class: 'row' },
+        field('Cost center name', textInput(cc.name, function (v) { editState(function (ns) { ns.costCenters[i].name = v; }); })),
+        h('div', { class: 'right' }, h('button', { class: 'btn ghost small', onclick: function () { editState(function (ns) { ns.costCenters.splice(i, 1); }); } }, 'Remove'))
+      ),
+      h('div', { class: 'row' },
+        field('Organizations', orgCheckboxes(cc.memberOrgIds, function (ids) { editState(function (ns) { ns.costCenters[i].memberOrgIds = ids; }); })),
+        field('Users', userCheckboxes(cc.memberUserIds, function (ids) { editState(function (ns) { ns.costCenters[i].memberUserIds = ids; }); }))
+      ),
+      h('div', { class: 'row' },
+        h('label', { class: 'inline' }, h('input', { type: 'checkbox', checked: control.enabled, onchange: function (e) { var on = e.target.checked; editState(function (ns) { ns.costCenters[i].includedUsageControl = { enabled: on, onCapReached: control.onCapReached || 'paidOverage' }; }); } }), ' Included-usage control ', docChip('budgets-ubb')),
+        control.enabled ? field('When cap is reached', h('select', { onchange: function (e) { var v = e.target.value; editState(function (ns) { ns.costCenters[i].includedUsageControl.onCapReached = v; }); } },
+          opt('paidOverage', 'Allow paid overage', control.onCapReached === 'paidOverage'), opt('block', 'Block further usage', control.onCapReached === 'block'))) : null,
+        control.enabled ? h('div', null, h('small', { class: 'muted' }, 'Pool cap: ' + credits(E.includedCap(state, cc)))) : null
+      )
+    );
+  }
+  function userCheckboxes(selected, onChange) {
+    var box = h('div', { class: 'tag-list' });
+    state.users.forEach(function (u) {
+      var checked = (selected || []).indexOf(u.id) !== -1;
+      box.appendChild(h('label', { class: 'inline', style: 'font-size:0.78rem' },
+        h('input', { type: 'checkbox', checked: checked, onchange: function (e) {
+          var ids = (selected || []).slice();
+          if (e.target.checked) { if (ids.indexOf(u.id) === -1) ids.push(u.id); } else { ids = ids.filter(function (x) { return x !== u.id; }); }
+          onChange(ids);
+        } }), ' ' + u.login));
+    });
+    return box;
+  }
+  function orgCheckboxesForCc(selected, onChange) { return orgCheckboxes(selected, onChange); }
+
+  /* -------- GitHub-style billing sub-pages -------------------------------- */
+  function configBudgets() {
+    var wrap = h('div', null);
+    wrap.appendChild(h('div', { class: 'view-header' },
+      h('div', null, h('h2', null, 'Budgets and alerts ', docChip('budgets-alerts')),
+        h('div', { class: 'section-note' }, 'Copilot usage is measured in AI credits. Budgets can be scoped to the enterprise, an organization, a cost center, or users.')),
+      h('button', { class: 'btn', onclick: function () { openBudgetModal(null); } }, 'New budget')));
+    var budgets = listBudgets();
+    wrap.appendChild(h('div', { class: 'card' },
+      budgets.length ? budgetsTable(budgets) : h('p', { class: 'muted' }, 'No budgets yet. Choose \u201CNew budget\u201D to create one.')));
+    return wrap;
+  }
+
+  function listBudgets() {
+    var rt = state.runtime, out = [], ent = state.enterprise;
+    if (ent.enterpriseBudget) out.push({ id: 'ent', scope: 'Enterprise', sub: ent.name, amount: ent.enterpriseBudget.amountUsd, hardStop: ent.enterpriseBudget.hardStop, used: rt.entMeteredUsd, userLevel: false });
+    if (ent.universalUlbUsd != null) out.push({ id: 'uni', scope: 'Users', sub: 'All Copilot-licensed users (universal)', amount: ent.universalUlbUsd, hardStop: true, userLevel: true });
+    state.organizations.forEach(function (o) { if (o.budget) out.push({ id: 'org:' + o.id, scope: 'Organization', sub: o.name, amount: o.budget.amountUsd, hardStop: o.budget.hardStop, used: rt.orgMeteredUsd[o.id] || 0, userLevel: false }); });
+    state.costCenters.forEach(function (cc) {
+      if (cc.budget) out.push({ id: 'cc:' + cc.id, scope: 'Cost center', sub: cc.name, amount: cc.budget.amountUsd, hardStop: cc.budget.hardStop, used: rt.ccMeteredUsd[cc.id] || 0, userLevel: false });
+      if (cc.userLevelBudgetUsd != null) out.push({ id: 'cculb:' + cc.id, scope: 'Users', sub: 'Every user in ' + cc.name, amount: cc.userLevelBudgetUsd, hardStop: true, userLevel: true });
+    });
+    state.users.forEach(function (u) { if (u.individualUlbUsd != null) out.push({ id: 'ulb:' + u.id, scope: 'Users', sub: u.login + ' (individual)', amount: u.individualUlbUsd, hardStop: true, userLevel: true }); });
+    return out;
+  }
+
+  function budgetsTable(budgets) {
+    return h('div', { class: 'table-wrap' }, h('table', null,
+      h('thead', null, h('tr', null, ['Budget type', 'Scope', 'Budget', 'Used this cycle', 'Stop usage', 'Alerts', ''].map(function (t) { return h('th', null, t); }))),
+      h('tbody', null, budgets.map(function (b) {
+        var ratio = (!b.userLevel && b.amount) ? (b.used || 0) / b.amount : 0;
+        return h('tr', null,
+          h('td', null, 'Bundled AI credits'),
+          h('td', null, h('div', null, b.scope), h('small', { class: 'muted' }, b.sub)),
+          h('td', { class: 'nowrap' }, usd(b.amount) + (b.userLevel ? ' / user' : '')),
+          h('td', { class: 'nowrap' }, b.userLevel ? h('small', { class: 'muted' }, 'per-user') : (usd(b.used || 0) + ' (' + pct(ratio) + ')')),
+          h('td', null, b.hardStop ? badge('Stop', 'block') : badge('Alert only', 'warn')),
+          h('td', null, badge('75/90/100%', 'neutral')),
+          h('td', { class: 'nowrap' },
+            h('button', { class: 'btn ghost small', onclick: function () { openBudgetModal(b.id); } }, 'Edit'), ' ',
+            h('button', { class: 'btn ghost small', onclick: function () { deleteBudget(b.id); } }, 'Delete')));
+      }))
+    ));
+  }
+
+  function deleteBudget(id) {
+    if (!confirm('Delete this budget?')) return;
+    editState(function (ns) {
+      if (id === 'ent') ns.enterprise.enterpriseBudget = null;
+      else if (id === 'uni') ns.enterprise.universalUlbUsd = null;
+      else if (id.indexOf('cculb:') === 0) { var c = ns.costCenters.filter(function (x) { return x.id === id.slice(6); })[0]; if (c) c.userLevelBudgetUsd = null; }
+      else if (id.indexOf('cc:') === 0) { var c2 = ns.costCenters.filter(function (x) { return x.id === id.slice(3); })[0]; if (c2) c2.budget = null; }
+      else if (id.indexOf('org:') === 0) { var o = ns.organizations.filter(function (x) { return x.id === id.slice(4); })[0]; if (o) o.budget = null; }
+      else if (id.indexOf('ulb:') === 0) { var u = ns.users.filter(function (x) { return x.id === id.slice(4); })[0]; if (u) u.individualUlbUsd = null; }
+    });
+  }
+
+  /* -------- New / Edit budget modal (mirrors GitHub's flow) --------------- */
+  function firstOrgId() { return state.organizations[0] ? state.organizations[0].id : ''; }
+  function firstCcId() { return state.costCenters[0] ? state.costCenters[0].id : ''; }
+
+  function openBudgetModal(id) {
+    if (id == null) budgetModal = { mode: 'new', id: null, scope: 'enterprise', orgId: firstOrgId(), ccId: firstCcId(), userTarget: 'universal', amount: 500, hardStop: true };
+    else budgetModal = draftFromBudgetId(id);
+    render();
+  }
+  function draftFromBudgetId(id) {
+    var d = { mode: 'edit', id: id, scope: 'enterprise', orgId: firstOrgId(), ccId: firstCcId(), userTarget: 'universal', amount: 0, hardStop: true };
+    if (id === 'ent') { d.scope = 'enterprise'; d.amount = state.enterprise.enterpriseBudget.amountUsd; d.hardStop = state.enterprise.enterpriseBudget.hardStop; }
+    else if (id === 'uni') { d.scope = 'users'; d.userTarget = 'universal'; d.amount = state.enterprise.universalUlbUsd; }
+    else if (id.indexOf('cculb:') === 0) { var c = E.findCostCenter(state, id.slice(6)); d.scope = 'users'; d.userTarget = 'cc:' + c.id; d.amount = c.userLevelBudgetUsd; }
+    else if (id.indexOf('cc:') === 0) { var c2 = E.findCostCenter(state, id.slice(3)); d.scope = 'costcenter'; d.ccId = c2.id; d.amount = c2.budget.amountUsd; d.hardStop = c2.budget.hardStop; }
+    else if (id.indexOf('org:') === 0) { var o = E.findOrg(state, id.slice(4)); d.scope = 'organization'; d.orgId = o.id; d.amount = o.budget.amountUsd; d.hardStop = o.budget.hardStop; }
+    else if (id.indexOf('ulb:') === 0) { var u = E.findUser(state, id.slice(4)); d.scope = 'users'; d.userTarget = 'user:' + u.id; d.amount = u.individualUlbUsd; }
+    return d;
+  }
+  function closeBudgetModal() { budgetModal = null; render(); }
+  function saveBudgetDraft() {
+    var d = budgetModal; var amt = Number(d.amount) || 0;
+    if (amt < 0) { alert('Budget amount must be zero or greater.'); return; }
+    if (d.scope === 'organization' && !d.orgId) { alert('Create an organization first.'); return; }
+    if (d.scope === 'costcenter' && !d.ccId) { alert('Create a cost center first.'); return; }
+    budgetModal = null;
+    editState(function (ns) {
+      if (d.scope === 'enterprise') { var keep = ns.enterprise.enterpriseBudget && ns.enterprise.enterpriseBudget.excludeCostCenters; ns.enterprise.enterpriseBudget = { amountUsd: amt, hardStop: d.hardStop, excludeCostCenters: !!keep }; }
+      else if (d.scope === 'organization') { var o = ns.organizations.filter(function (x) { return x.id === d.orgId; })[0]; if (o) o.budget = { amountUsd: amt, hardStop: d.hardStop }; }
+      else if (d.scope === 'costcenter') { var c = ns.costCenters.filter(function (x) { return x.id === d.ccId; })[0]; if (c) c.budget = { amountUsd: amt, hardStop: d.hardStop }; }
+      else if (d.scope === 'users') {
+        if (d.userTarget === 'universal') ns.enterprise.universalUlbUsd = amt;
+        else if (d.userTarget.indexOf('cc:') === 0) { var cc = ns.costCenters.filter(function (x) { return x.id === d.userTarget.slice(3); })[0]; if (cc) cc.userLevelBudgetUsd = amt; }
+        else if (d.userTarget.indexOf('user:') === 0) { var u = ns.users.filter(function (x) { return x.id === d.userTarget.slice(5); })[0]; if (u) u.individualUlbUsd = amt; }
+      }
+    });
+  }
+  function renderBudgetModal() {
+    var d = budgetModal; if (!d) return null;
+    var locked = d.mode === 'edit';
+    var isUser = d.scope === 'users';
+
+    var typeSection = h('div', null,
+      h('div', { class: 'field' }, h('span', null, 'Budget Type')),
+      radioCard(true, true, 'Bundled AI credits budget', 'Limits spending across all SKUs that consume AI credits (Copilot, Copilot cloud agent, Spark).'),
+      radioCard(false, false, 'Product-level budget', 'Limits spending on a single metered product.'),
+      radioCard(false, false, 'SKU-level budget', 'Limits spending on a specific SKU within a product.'),
+      h('small', { class: 'muted' }, 'This educational simulator models Copilot AI credit spending, so \u201CBundled AI credits budget\u201D is preselected.'));
+
+    var scopeControl;
+    if (locked) scopeControl = h('div', { class: 'readonly-field' }, scopeSummary(d), ' \u2014 scope cannot be changed after creation');
+    else scopeControl = h('select', { onchange: function (e) { d.scope = e.target.value; render(); } },
+      opt('enterprise', 'Enterprise', d.scope === 'enterprise'),
+      opt('organization', 'Organization', d.scope === 'organization'),
+      opt('costcenter', 'Cost center', d.scope === 'costcenter'),
+      opt('users', 'Users', d.scope === 'users'));
+
+    var scopeExtra = null;
+    if (!locked && d.scope === 'organization') scopeExtra = field('Organization', h('select', { onchange: function (e) { d.orgId = e.target.value; } }, state.organizations.map(function (o) { return opt(o.id, o.name, o.id === d.orgId); })));
+    else if (!locked && d.scope === 'costcenter') scopeExtra = field('Cost center', h('select', { onchange: function (e) { d.ccId = e.target.value; } }, state.costCenters.length ? state.costCenters.map(function (c) { return opt(c.id, c.name, c.id === d.ccId); }) : [opt('', 'No cost centers', true)]));
+    else if (!locked && d.scope === 'users') {
+      var userOpts = [opt('universal', 'All Copilot-licensed users (universal)', d.userTarget === 'universal')];
+      state.costCenters.forEach(function (c) { userOpts.push(opt('cc:' + c.id, 'Every user in ' + c.name, d.userTarget === 'cc:' + c.id)); });
+      state.users.forEach(function (u) { userOpts.push(opt('user:' + u.id, u.login + ' (individual)', d.userTarget === 'user:' + u.id)); });
+      scopeExtra = h('div', null,
+        field('User budget applies to', h('select', { onchange: function (e) { d.userTarget = e.target.value; } }, userOpts)),
+        h('small', { class: 'muted' }, 'Empty/universal applies to all users; a cost center sets one per-user amount for its members; a user creates an individual override.'));
+    }
+
+    var stopSection = isUser
+      ? h('div', { class: 'section-note' }, 'User-level budgets always enforce a hard stop; a $0 budget blocks the user immediately.')
+      : h('label', { class: 'inline' }, h('input', { type: 'checkbox', checked: d.hardStop, onchange: function (e) { d.hardStop = e.target.checked; } }), ' Stop usage when budget limit is reached');
+
+    var modal = h('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true' },
+      h('h2', null, (locked ? 'Edit budget' : 'New budget'), ' ', docChip('set-up-budgets')),
+      typeSection,
+      h('div', { style: 'margin-top:0.8rem' }, h('div', { class: 'field' }, h('span', null, 'Budget scope')), scopeControl, scopeExtra),
+      h('div', { style: 'margin-top:0.8rem' }, field('Budget (USD)' + (isUser ? ' per user' : ''), h('input', { type: 'number', step: 'any', min: '0', value: d.amount == null ? '' : d.amount, onchange: function (e) { d.amount = Number(e.target.value); } }))),
+      h('div', { style: 'margin-top:0.4rem' }, stopSection),
+      h('div', { style: 'margin-top:0.8rem' }, h('div', { class: 'field' }, h('span', null, 'Alerts')),
+        h('label', { class: 'inline' }, h('input', { type: 'checkbox', checked: true, disabled: 'disabled' }), ' Receive budget threshold alerts (75%, 90%, 100%)')),
+      h('div', { class: 'modal-actions' },
+        h('button', { class: 'btn ghost', onclick: closeBudgetModal }, 'Cancel'),
+        h('button', { class: 'btn', onclick: saveBudgetDraft }, locked ? 'Save changes' : 'Create budget')));
+
+    return h('div', { class: 'modal-overlay', onclick: function (e) { if (e.target.classList.contains('modal-overlay')) closeBudgetModal(); } }, modal);
+  }
+  function scopeSummary(d) {
+    if (d.scope === 'enterprise') return 'Enterprise \u2014 ' + state.enterprise.name;
+    if (d.scope === 'organization') { var o = E.findOrg(state, d.orgId); return 'Organization \u2014 ' + (o ? o.name : d.orgId); }
+    if (d.scope === 'costcenter') { var c = E.findCostCenter(state, d.ccId); return 'Cost center \u2014 ' + (c ? c.name : d.ccId); }
+    if (d.userTarget === 'universal') return 'Users \u2014 all Copilot-licensed users (universal)';
+    if (d.userTarget.indexOf('cc:') === 0) { var cc = E.findCostCenter(state, d.userTarget.slice(3)); return 'Users \u2014 every user in ' + (cc ? cc.name : ''); }
+    var u = E.findUser(state, d.userTarget.slice(5)); return 'Users \u2014 ' + (u ? u.login : '') + ' (individual)';
+  }
+  function radioCard(selected, enabled, title, desc) {
+    return h('label', { class: 'radio-card' + (selected ? ' selected' : '') + (enabled ? '' : ' disabled') },
+      h('input', { type: 'radio', name: 'budgetType', checked: selected, disabled: enabled ? null : 'disabled', style: 'width:auto;margin-right:0.4rem' }),
+      h('strong', null, title), h('small', null, desc));
+  }
+
+  function configCostCenters() {
+    var wrap = h('div', null);
+    wrap.appendChild(h('div', { class: 'view-header' },
+      h('div', null, h('h2', null, 'Cost centers ', docChip('cost-centers')),
+        h('div', { class: 'section-note' }, 'Group organizations and users to allocate and budget usage together. Cost-center budgets are managed on the Budgets and alerts tab.')),
+      h('button', { class: 'btn', onclick: addCostCenter }, 'Add cost center')));
+    wrap.appendChild(state.costCenters.length ? h('div', null, state.costCenters.map(costCenterEditor)) : h('div', { class: 'card muted' }, 'No cost centers yet.'));
+    return wrap;
+  }
+  function configLicensing() {
+    var wrap = h('div', null);
+    wrap.appendChild(h('div', { class: 'view-header' },
+      h('div', null, h('h2', null, 'Licensing ', docChip('copilot-licenses')),
+        h('div', { class: 'section-note' }, 'Copilot seats. Each Business seat adds 1,900 and each Enterprise seat adds 3,900 AI credits to the shared pool.')),
+      h('button', { class: 'btn', onclick: addUser }, 'Add member')));
+    wrap.appendChild(h('div', { class: 'card' }, usersTable()));
+    wrap.appendChild(organizationsCard());
+    return wrap;
+  }
+  function configPolicies() {
+    var ent = state.enterprise;
+    return h('div', null,
+      h('div', { class: 'view-header' }, h('div', null, h('h2', null, 'Policies ', docChip('manage-enterprise-policies')),
+        h('div', { class: 'section-note' }, 'Copilot and billing policies for the enterprise.'))),
+      h('div', { class: 'card' },
+        field('Enterprise name', textInput(ent.name, function (v) { editState(function (ns) { ns.enterprise.name = v; }); })),
+        policyToggle('AI credit paid usage', 'When enabled, usage beyond the shared AI credit pool is metered and billed. When disabled, requests are blocked once the pool is exhausted.', ent.aiCreditPaidUsagePolicyEnabled, function (c) { editState(function (ns) { ns.enterprise.aiCreditPaidUsagePolicyEnabled = c; }); }, docChip('budgets-ubb'))),
+      h('div', { class: 'card' },
+        h('h3', null, 'Advanced modifiers ', badge('illustrative / unverified', 'warn')),
+        h('div', { class: 'section-note' }, 'Not confirmed in current GitHub documentation. Off by default \u2014 see Documentation \u2192 Exclusions.'),
+        policyToggle('Auto-model discount (10%)', 'Applies a 10% reduction when auto-model selection is used on a request.', state.settings.enableAutoModelDiscount, function (c) { editState(function (ns) { ns.settings.enableAutoModelDiscount = c; }); }),
+        policyToggle('Data-residency multiplier (\u00D71.10)', 'Applies a 10% surcharge for data-resident requests.', state.settings.enableDataResidency, function (c) { editState(function (ns) { ns.settings.enableDataResidency = c; }); })));
+  }
+  function policyToggle(title, desc, checked, onChange, chip) {
+    return h('div', { style: 'display:flex;justify-content:space-between;gap:1rem;align-items:flex-start;padding:0.7rem 0;border-top:1px solid var(--cp-border)' },
+      h('div', null, h('strong', null, title, chip ? [' ', chip] : null), h('div', { class: 'section-note', style: 'margin:0.2rem 0 0' }, desc)),
+      h('label', { class: 'inline nowrap' }, h('input', { type: 'checkbox', checked: checked, onchange: function (e) { onChange(e.target.checked); } }), ' Enabled'));
+  }
+  function configPresets() {
+    var scenSel = h('select', { id: 'scenario-select' }, SC.presets.map(function (p) { return opt(p.id, p.name, p.id === state.meta.selectedScenarioId); }));
+    scenSel.addEventListener('change', function () { var dd = document.getElementById('scenario-desc'); if (dd) dd.textContent = presetDesc(scenSel.value); });
+    return h('div', null,
+      h('div', { class: 'view-header' }, h('div', null, h('h2', null, 'Scenario presets'), h('div', { class: 'section-note' }, 'Simulator-only: load a documented example configuration. Not part of the GitHub UI.'))),
+      h('div', { class: 'card' },
+        h('div', { class: 'row' },
+          h('div', { style: 'flex:2' }, scenSel, h('div', { id: 'scenario-desc', class: 'section-note', style: 'margin-top:0.4rem' }, presetDesc(scenSel.value))),
+          h('div', { class: 'btn-row', style: 'flex:1' },
+            h('button', { class: 'btn', onclick: function () { var id = document.getElementById('scenario-select').value; commit(E.ensureCycle(SC.build(id))); } }, 'Load scenario'),
+            h('button', { class: 'btn ghost', onclick: function () { if (confirm('Reset to the default scenario? This clears your edits and simulation.')) commit(E.ensureCycle(SC.initial())); } }, 'Reset')))),
+      h('div', { class: 'card' }, h('h3', null, 'Included preset scenarios'),
+        h('ul', null, SC.presets.map(function (p) { return h('li', null, h('strong', null, p.name), ' \u2014 ', p.description, ruleChips(p.sourceRefs)); }))));
+  }
+  function addUser() { editState(function (ns) { ns.users.push({ id: 'u-' + Date.now(), login: 'newuser', licenseType: 'CopilotBusiness', assigningOrgIds: ns.organizations[0] ? [ns.organizations[0].id] : [], individualUlbUsd: null }); }); }
+  function addOrg() { editState(function (ns) { ns.organizations.push({ id: 'org-' + Date.now(), name: 'New org', budget: null }); }); }
+  function addCostCenter() { editState(function (ns) { ns.costCenters.push({ id: 'cc-' + Date.now(), name: 'New cost center', memberUserIds: [], memberOrgIds: [], budget: null, userLevelBudgetUsd: null, includedUsageControl: null }); }); }
+
+  /* ---------------------------- alerts & reports -------------------------- */
+  function viewReports() {
+    var wrap = h('div', null);
+
+    // Alerts
+    wrap.appendChild(h('div', { class: 'card' },
+      h('div', { class: 'view-header' }, h('h3', null, 'Budget alerts ', docChip('budgets-alerts')),
+        h('button', { class: 'btn ghost small', onclick: function () { editStatePreserveClock(function (ns) { ns.alerts = []; }); } }, 'Clear alerts')),
+      h('div', { class: 'section-note' }, 'Alerts fire once per threshold (75% / 90% / 100%) per cycle. User-level budget alerts are flagged as not consistently available.'),
+      state.alerts.length ? alertsTable() : h('p', { class: 'muted' }, 'No alerts fired yet.')
+    ));
+
+    // CSV reports
+    wrap.appendChild(h('div', { class: 'card' },
+      h('h3', null, 'Usage report exports ', docChip('billing-reports')),
+      h('div', { class: 'section-note' }, 'CSVs are generated from simulated events and modeled after GitHub billing exports; exact column parity with live exports is not guaranteed (see Documentation \u2192 Exclusions).'),
+      h('div', { class: 'btn-row' },
+        h('button', { class: 'btn ghost', onclick: exportSummaryCsv }, 'Summary usage CSV'),
+        h('button', { class: 'btn ghost', onclick: exportDetailedCsv }, 'Detailed usage CSV'),
+        h('button', { class: 'btn ghost', onclick: exportAiUsageCsv }, 'AI usage (per user/model) CSV')
+      )
+    ));
+
+    // JSON scenario import/export
+    wrap.appendChild(h('div', { class: 'card' },
+      h('h3', null, 'Scenario & data'),
+      h('div', { class: 'btn-row' },
+        h('button', { class: 'btn ghost', onclick: exportStateJson }, 'Export scenario JSON'),
+        importButton(),
+        h('button', { class: 'btn ghost', onclick: exportTraceability }, 'Download traceability JSON'),
+        h('button', { class: 'btn ghost', onclick: exportExclusions }, 'Download exclusions (Markdown)')
+      ),
+      h('div', { id: 'import-msg', class: 'section-note', style: 'margin-top:0.6rem' })
+    ));
+
+    return wrap;
+  }
+  function alertsTable() {
+    return h('div', { class: 'table-wrap' }, h('table', null,
+      h('thead', null, h('tr', null, ['Date', 'Scope', 'Budget', 'Threshold', 'Utilization', 'Note'].map(function (t) { return h('th', null, t); }))),
+      h('tbody', null, state.alerts.slice().reverse().map(function (a) {
+        return h('tr', null,
+          h('td', { class: 'nowrap' }, a.ts),
+          h('td', null, a.scope),
+          h('td', null, a.label),
+          h('td', null, badge(pct(a.threshold), a.threshold >= 1 ? 'block' : 'warn')),
+          h('td', { class: 'nowrap' }, pct(a.ratio) + ' (' + usd(a.consumedUsd) + '/' + usd(a.amountUsd) + ')'),
+          h('td', null, a.caveat ? h('small', { class: 'muted' }, a.caveat) : '')
+        );
+      }))
+    ));
+  }
+
+  /* -------------------------------- reports data -------------------------- */
+  function detailedRows() {
+    return state.events.map(function (ev) {
+      var b = ev.breakdown || {};
+      return {
+        Date: ev.ts, User: ev.userLogin, Feature: ev.feature,
+        Model: b.modelName || '', Tier: b.tier || '', Provider: b.provider || '',
+        CostCenter: b.costCenter || '', Outcome: ev.outcome,
+        Credits: round(ev.costCredits, 4), NetUSD: round(ev.costUsd, 6)
+      };
+    });
+  }
+  function exportDetailedCsv() {
+    var rows = detailedRows();
+    downloadCsv('copilot-detailed-usage.csv',
+      ['Date', 'User', 'Feature', 'Model', 'Tier', 'Provider', 'CostCenter', 'Outcome', 'Credits', 'NetUSD'], rows);
+  }
+  function exportSummaryCsv() {
+    var map = {};
+    state.events.forEach(function (ev) {
+      var b = ev.breakdown || {};
+      var key = (b.modelName || ev.feature) + '|' + ev.outcome;
+      if (!map[key]) map[key] = { Product: 'GitHub Copilot', Model: b.modelName || '(n/a)', Outcome: ev.outcome, Requests: 0, Credits: 0, NetUSD: 0 };
+      map[key].Requests += 1; map[key].Credits += ev.costCredits || 0; map[key].NetUSD += ev.costUsd || 0;
+    });
+    var rows = Object.keys(map).map(function (k) { var r = map[k]; r.Credits = round(r.Credits, 4); r.NetUSD = round(r.NetUSD, 6); return r; });
+    downloadCsv('copilot-summary-usage.csv', ['Product', 'Model', 'Outcome', 'Requests', 'Credits', 'NetUSD'], rows);
+  }
+  function exportAiUsageCsv() {
+    var map = {};
+    state.events.forEach(function (ev) {
+      var b = ev.breakdown || {}; if (!b.modelName) return;
+      var key = ev.userLogin + '|' + b.modelName;
+      if (!map[key]) map[key] = { User: ev.userLogin, Model: b.modelName, Requests: 0, Credits: 0, NetUSD: 0 };
+      map[key].Requests += 1; map[key].Credits += ev.costCredits || 0; map[key].NetUSD += ev.costUsd || 0;
+    });
+    var rows = Object.keys(map).map(function (k) { var r = map[k]; r.Credits = round(r.Credits, 4); r.NetUSD = round(r.NetUSD, 6); return r; });
+    downloadCsv('copilot-ai-usage.csv', ['User', 'Model', 'Requests', 'Credits', 'NetUSD'], rows);
+  }
+  function round(n, d) { var f = Math.pow(10, d); return Math.round((Number(n) || 0) * f) / f; }
+  function toCsv(headers, rows) {
+    var esc = function (v) { v = v == null ? '' : String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+    var lines = [headers.map(esc).join(',')];
+    rows.forEach(function (r) { lines.push(headers.map(function (hd) { return esc(r[hd]); }).join(',')); });
+    return lines.join('\r\n');
+  }
+  function downloadCsv(name, headers, rows) {
+    if (!rows.length) { alert('No events to export yet — run some requests first.'); return; }
+    download(name, toCsv(headers, rows), 'text/csv');
+  }
+  function exportStateJson() { download('copilot-billing-scenario.json', JSON.stringify({ __v: 1, state: stripRuntime(state) }, null, 2), 'application/json'); }
+  function stripRuntime(s) { var c = SC.clone(s); c.runtime = null; c.events = []; c.alerts = []; return c; }
+  function exportTraceability() {
+    var out = { generatedAt: new Date().toISOString(), constants: DATA.CONSTANTS, docs: DATA.DOCS, rules: DATA.RULES, models: DATA.MODELS };
+    download('copilot-billing-traceability.json', JSON.stringify(out, null, 2), 'application/json');
+  }
+  function exportExclusions() {
+    var md = '# Not documented \u2014 excluded from the simulator\n\n';
+    md += 'Generated ' + new Date().toISOString() + '. Behavior below is intentionally not simulated or is flagged as unverified.\n\n';
+    DATA.EXCLUSIONS.forEach(function (x) {
+      md += '## ' + x.title + '\n\n' + x.note + '\n\n';
+      if (x.sourceRefs && x.sourceRefs.length) {
+        md += 'Sources:\n';
+        x.sourceRefs.forEach(function (r) { if (r.url) md += '- [' + (r.title || r.url) + '](' + r.url + ')\n'; });
+        md += '\n';
+      }
+    });
+    download('copilot-billing-exclusions.md', md, 'text/markdown');
+  }
+  function importButton() {
+    var input = h('input', { type: 'file', accept: '.json,application/json', class: 'hidden', onchange: function (e) {
+      var file = e.target.files[0]; if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function () {
+        var msg = document.getElementById('import-msg');
+        try {
+          var obj = JSON.parse(reader.result);
+          var st = obj && obj.state ? obj.state : obj;
+          var err = validateState(st);
+          if (err) { if (msg) { msg.textContent = 'Import failed: ' + err; msg.style.color = 'var(--cp-danger)'; } return; }
+          if (!st.runtime) st = E.ensureCycle(st);
+          if (msg) { msg.textContent = 'Scenario imported successfully.'; msg.style.color = 'var(--cp-success)'; }
+          commit(st);
+        } catch (ex) {
+          if (msg) { msg.textContent = 'Import failed: invalid JSON.'; msg.style.color = 'var(--cp-danger)'; }
+        }
+      };
+      reader.readAsText(file);
+    } });
+    var btn = h('button', { class: 'btn ghost', onclick: function () { input.click(); } }, 'Import scenario JSON');
+    return h('span', null, btn, input);
+  }
+  function validateState(st) {
+    if (!st || typeof st !== 'object') return 'not an object';
+    if (!st.enterprise) return 'missing enterprise';
+    if (!Array.isArray(st.users)) return 'missing users array';
+    if (!Array.isArray(st.organizations)) return 'missing organizations array';
+    if (!Array.isArray(st.costCenters)) return 'missing costCenters array';
+    if (!st.clock || !st.clock.currentDateUtc) return 'missing clock';
+    return null;
+  }
+
+  /* ------------------------------ documentation --------------------------- */
+  function viewDocs() {
+    var wrap = h('div', null);
+    wrap.appendChild(h('div', { class: 'banner info' }, 'This simulator is grounded in current GitHub documentation. Every rule links to its source. Behavior that is undocumented or unverified is listed under Exclusions rather than invented.'));
+
+    // Docs catalog
+    var docKeys = Object.keys(DATA.DOCS);
+    wrap.appendChild(h('div', { class: 'card' },
+      h('h3', null, 'Documentation catalog (' + docKeys.length + ')'),
+      h('div', { class: 'table-wrap' }, h('table', null,
+        h('thead', null, h('tr', null, ['#', 'Title', 'Link'].map(function (t) { return h('th', null, t); }))),
+        h('tbody', null, docKeys.map(function (k) {
+          var d = DATA.DOCS[k];
+          return h('tr', null, h('td', null, d.id), h('td', null, d.title), h('td', null, h('a', { href: d.url, target: '_blank', rel: 'noopener' }, d.url)));
+        }))
+      ))
+    ));
+
+    // Rules
+    wrap.appendChild(h('div', { class: 'card' },
+      h('h3', null, 'Rule catalog & traceability (' + DATA.RULES.length + ')'),
+      DATA.RULES.map(function (r) {
+        return h('details', { class: 'rule' },
+          h('summary', null, r.id + ' — ' + r.title),
+          (r.sourceRefs || []).map(function (ref) {
+            return h('div', null,
+              ref.excerpt ? h('div', { class: 'excerpt' }, '\u201C' + ref.excerpt + '\u201D') : null,
+              ref.url ? h('a', { href: ref.url, target: '_blank', rel: 'noopener' }, ref.title || ref.url) : h('span', { class: 'muted' }, ref.title || ''));
+          })
+        );
+      })
+    ));
+
+    // Exclusions
+    wrap.appendChild(h('div', { class: 'card' },
+      h('div', { class: 'view-header' }, h('h3', null, 'Not documented \u2014 excluded (' + DATA.EXCLUSIONS.length + ')'),
+        h('button', { class: 'btn ghost small', onclick: exportExclusions }, 'Download Markdown')),
+      DATA.EXCLUSIONS.map(function (x) {
+        return h('div', { class: 'card', style: 'background:var(--cp-surface-soft);margin-bottom:0.6rem' },
+          h('strong', null, x.title),
+          h('p', { style: 'margin:0.3rem 0' }, x.note),
+          (x.sourceRefs || []).length ? h('div', { class: 'tag-list' }, x.sourceRefs.map(function (r) { return r.key ? docChip(r.key) : null; })) : h('small', { class: 'muted' }, 'No supporting citation.'));
+      })
+    ));
+
+    // Model catalog
+    wrap.appendChild(h('div', { class: 'card' },
+      h('h3', null, 'Model pricing catalog ', docChip('models-pricing')),
+      h('div', { class: 'section-note' }, 'USD per 1,000,000 tokens. 1 AI credit = $0.01. Verified 2026-07-23.'),
+      h('div', { class: 'table-wrap' }, h('table', null,
+        h('thead', null, h('tr', null, ['Provider', 'Model', 'Tier', 'Input', 'Cached', 'Cache write', 'Output', 'Status'].map(function (t) { return h('th', null, t); }))),
+        h('tbody', null, DATA.MODELS.map(function (m) {
+          return h('tr', null, h('td', null, m.provider), h('td', null, m.name), h('td', null, m.tier),
+            h('td', null, usd(m.inputPricePerMillion)), h('td', null, usd(m.cachedInputPricePerMillion)),
+            h('td', null, m.cacheWritePricePerMillion == null ? '—' : usd(m.cacheWritePricePerMillion)),
+            h('td', null, usd(m.outputPricePerMillion)), h('td', null, h('small', null, m.releaseStatus)));
+        }))
+      ))
+    ));
+
+    return wrap;
+  }
+
+  /* ------------------------------ small builders -------------------------- */
+  function stat(label, value, sub, chip) { return h('div', { class: 'stat' }, h('div', { class: 'label' }, label, chip ? [' ', chip] : null), h('div', { class: 'value' }, value), sub ? h('div', { class: 'sub' }, sub) : null); }
+  function kvTile(label, value) { return h('div', null, h('div', { class: 'label muted', style: 'font-size:0.75rem;text-transform:uppercase' }, label), h('div', { style: 'font-weight:600;margin-top:0.15rem' }, value)); }
+  function field(label, control, chip) { return h('label', { class: 'field' }, h('span', null, label, chip ? [' ', chip] : null), control); }
+  function textInput(val, onChange) { return h('input', { type: 'text', value: val || '', onchange: function (e) { onChange(e.target.value); } }); }
+  function numFieldInput(val, onChange) { return h('input', { type: 'number', step: 'any', min: '0', value: val == null ? '' : val, onchange: function (e) { onChange(parseNum(e.target.value)); } }); }
+  function numInputVal(val, onChange) { return h('input', { type: 'number', step: 'any', min: '0', value: val == null ? '' : val, onchange: function (e) { onChange(Number(e.target.value)); } }); }
+  function opt(value, label, selected) { return h('option', { value: value, selected: selected ? 'selected' : null }, label); }
+  function badge(text, cls) { return h('span', { class: 'badge ' + (cls || 'neutral') }, text); }
+  function shortLic(t) { return t === 'CopilotEnterprise' ? 'CE' : 'CB'; }
+  function outcomeBadge(o) {
+    var cls = o === 'MeteredCharged' ? 'meter' : (o === 'ServedFromPool' || o === 'UnlimitedFeature' ? 'ok' : (o === 'Error' ? 'neutral' : 'block'));
+    return badge(humanOutcome(o), cls);
+  }
+  function humanOutcome(o) {
+    return ({
+      ServedFromPool: 'Served from pool', MeteredCharged: 'Metered charge', UnlimitedFeature: 'Unlimited feature',
+      BlockedByUserLevelBudget: 'Blocked — user budget', BlockedByIncludedUsageControl: 'Blocked — included cap',
+      BlockedByPaidUsagePolicyOff: 'Blocked — paid usage off', BlockedByCostCenterBudget: 'Blocked — cost center',
+      BlockedByOrganizationBudget: 'Blocked — organization', BlockedByEnterpriseBudget: 'Blocked — enterprise', Error: 'Error'
+    })[o] || o;
+  }
+  function editStatePreserveClock(fn) { var ns = SC.clone(state); fn(ns); commit(ns); }
+
+  /* --------------------------------- shell -------------------------------- */
+  var NAV = [
+    { id: 'overview', label: 'Overview', render: viewOverview },
+    { id: 'config', label: 'Configuration', render: viewConfig },
+    { id: 'simulator', label: 'Simulator', render: viewSimulator },
+    { id: 'reports', label: 'Alerts & Reports', render: viewReports },
+    { id: 'docs', label: 'Documentation', render: viewDocs }
+  ];
+
+  function download(name, text, mime) {
+    var blob = new Blob([text], { type: mime || 'text/plain' });
+    var url = URL.createObjectURL(blob);
+    var a = h('a', { href: url, download: name });
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { document.body.removeChild(a); URL.revokeObjectURL(url); }, 0);
+  }
+
+  function toggleTheme() {
+    var cur = document.documentElement.getAttribute('data-theme');
+    document.documentElement.setAttribute('data-theme', cur === 'dark' ? 'light' : 'dark');
+  }
+
+  function render() {
+    state = E.ensureCycle(state);
+    var root = document.getElementById('app');
+    clear(root);
+
+    var nav = h('nav', { class: 'sidebar' },
+      h('div', { class: 'brand' }, h('span', { class: 'dot' }), h('strong', null, 'Copilot Billing Simulator')),
+      NAV.map(function (n) { return h('button', { class: 'nav-btn' + (n.id === activeView ? ' active' : ''), onclick: function () { activeView = n.id; render(); } }, n.label); }),
+      h('div', { class: 'spacer' }),
+      h('button', { class: 'nav-btn', onclick: toggleTheme }, 'Toggle theme'),
+      h('div', { class: 'section-note', style: 'padding:0 0.7rem' }, 'Educational model of GitHub Copilot usage-based billing. Not affiliated with GitHub. Verify figures against official docs.')
+    );
+
+    var view = (NAV.filter(function (n) { return n.id === activeView; })[0] || NAV[0]);
+    var main = h('main', { class: 'main' },
+      h('div', { class: 'view-header' }, h('h1', null, view.label), h('div', { class: 'muted' }, state.enterprise.name + ' • ' + state.clock.currentDateUtc)),
+      view.render()
+    );
+
+    root.appendChild(h('div', { class: 'app' }, nav, main));
+    if (budgetModal) root.appendChild(renderBudgetModal());
+  }
+
+  render();
+})();
+
+</script>
+</body>
+</html>
