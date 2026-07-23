@@ -220,6 +220,23 @@ details.rule summary { cursor: pointer; font-weight: 600; }
 .radio-card.disabled { opacity: 0.55; cursor: not-allowed; }
 .radio-card small { display: block; color: var(--cp-text-muted); margin-top: 0.15rem; }
 .readonly-field { padding: 0.45rem 0.6rem; border: 1px dashed var(--cp-border-strong); border-radius: 0.625rem; background: var(--cp-surface-soft); color: var(--cp-text-muted); font-size: 0.85rem; }
+
+/* Start here — educational primer */
+.idea { display: flex; gap: 0.6rem; background: var(--cp-surface-soft); border: 1px solid var(--cp-border); border-radius: 12px; padding: 0.7rem 0.8rem; }
+.idea-n { flex: 0 0 auto; width: 28px; height: 28px; border-radius: 50%; background: var(--cp-accent); color: var(--cp-accent-fg); display: flex; align-items: center; justify-content: center; font-weight: 700; }
+.mini-card { background: var(--cp-surface-soft); border: 1px solid var(--cp-border); border-radius: 12px; padding: 0.8rem 1rem; }
+.flow { display: flex; flex-wrap: wrap; align-items: stretch; gap: 0.5rem; margin-top: 0.6rem; }
+.flow-step { flex: 1; min-width: 160px; background: var(--cp-surface-soft); border: 1px solid var(--cp-border); border-radius: 10px; padding: 0.6rem 0.8rem; }
+.flow-arrow { align-self: center; color: var(--cp-text-muted); font-size: 1.3rem; }
+.tick-list { margin: 0.4rem 0 0 1.1rem; padding: 0; }
+.tick-list li { margin: 0.2rem 0; }
+.inline-link { color: var(--cp-link); font-weight: 600; cursor: pointer; text-decoration: none; }
+.inline-link:hover { text-decoration: underline; }
+
+/* Simulator live meters — sticky so it stays visible while building requests */
+.live-meters { position: sticky; top: 0.75rem; z-index: 5; border-color: var(--cp-accent); box-shadow: var(--cp-shadow); }
+.meter-list { display: grid; gap: 0.55rem; margin-top: 0.9rem; }
+.meter-row .meter-head { display: flex; justify-content: space-between; gap: 0.75rem; font-size: 0.82rem; margin-bottom: 0.12rem; }
 @media (max-width: 780px) {
   .app { flex-direction: column; }
   .sidebar { width: 100%; height: auto; position: static; flex-direction: row; flex-wrap: wrap; }
@@ -1145,7 +1162,7 @@ details.rule summary { cursor: pointer; font-weight: 600; }
   /* --------------------------------- state -------------------------------- */
   var state = load() || SC.initial();
   state = E.ensureCycle(state);
-  var activeView = 'overview';
+  var activeView = 'home';
   var lastResult = null;
   var configTab = 'budgets';
   var budgetModal = null;
@@ -1210,6 +1227,132 @@ details.rule summary { cursor: pointer; font-weight: 600; }
     if (!refs) return null;
     return refs.map(function (r) { return r.key ? docChip(r.key) : null; });
   }
+
+  /* -------------------------------- start here ---------------------------- */
+  function viewStartHere() {
+    var wrap = h('div', null);
+
+    wrap.appendChild(h('div', { class: 'banner info' },
+      'New here? This 2-minute primer explains how GitHub Copilot usage-based billing works in plain language, so the Configuration and Simulator tabs make sense. ',
+      docChip('billing-overview')));
+
+    // The mental model — four ideas.
+    wrap.appendChild(h('div', { class: 'card' },
+      h('h3', null, 'The mental model — 4 ideas explain the whole system'),
+      h('div', { class: 'grid cols-4' },
+        ideaTile('1', '1 credit = $0.01', 'Every AI interaction is priced in AI credits.'),
+        ideaTile('2', 'Credits are pooled', 'All seats share one bucket of credits per billing entity.'),
+        ideaTile('3', 'Two phases', 'The free shared pool is spent first, then metered paid usage.'),
+        ideaTile('4', 'Budgets guard', 'Caps and 75 / 90 / 100% alerts keep spending in check.')),
+      h('div', { class: 'section-note', style: 'margin-top:0.6rem' }, 'Master these four and every screen in the billing UI becomes self-explanatory.')));
+
+    // The unit.
+    wrap.appendChild(h('div', { class: 'card' },
+      h('h3', null, 'AI credits — the unit of spend ', docChip('models-pricing')),
+      h('p', null, 'A single AI credit is worth $0.01, so a $10 budget equals 1,000 credits. Each interaction becomes credits like this:'),
+      h('div', { class: 'flow' },
+        flowStep('Your tokens', 'input + output + cached tokens'),
+        flowArrow(),
+        flowStep('Priced by model', 'each model has its own rate'),
+        flowArrow(),
+        flowStep('AI credits', 'the amount drawn from your pool or budget'))));
+
+    // What counts.
+    wrap.appendChild(h('div', { class: 'card' },
+      h('h3', null, 'What actually spends credits'),
+      h('div', { class: 'grid cols-2' },
+        h('div', { class: 'mini-card' }, badge('Spends credits', 'meter'),
+          bullets(['Copilot Chat', 'Copilot CLI', 'Copilot coding / cloud agent', 'Copilot Spaces and Spark', 'Third-party coding agents'])),
+        h('div', { class: 'mini-card' }, badge('Free forever on paid plans', 'ok'),
+          bullets(['Code completions', 'Next edit suggestions']),
+          h('div', { class: 'section-note' }, 'Unlimited — these never draw from the pool or a budget.')))));
+
+    // Included allowance + pooling.
+    wrap.appendChild(h('div', { class: 'card' },
+      h('h3', null, 'Each seat brings monthly credits into a shared pool ', docChip('copilot-licenses')),
+      h('div', { class: 'grid cols-4' },
+        stat('Copilot Business', E.fmtInt(C.CB_INCLUDED_CREDITS) + ' cr', 'included per seat / month'),
+        stat('Copilot Enterprise', E.fmtInt(C.CE_INCLUDED_CREDITS) + ' cr', 'included per seat / month'),
+        stat('Promo — Business', E.fmtInt(C.PROMO_CB_CREDITS) + ' cr', 'through ' + C.PROMO_END_UTC),
+        stat('Promo — Enterprise', E.fmtInt(C.PROMO_CE_CREDITS) + ' cr', 'through ' + C.PROMO_END_UTC)),
+      h('p', { style: 'margin-top:0.6rem' }, '100 Business seats do not make 100 separate buckets — they make ',
+        h('strong', null, 'one shared pool of ' + E.fmtInt(100 * C.CB_INCLUDED_CREDITS) + ' credits'),
+        '. Power users draw more when they need it; lighter users leave headroom for the team.')));
+
+    // The clock.
+    wrap.appendChild(h('div', { class: 'card' },
+      h('h3', null, 'The pool resets every month ', docChip('billing-cycle')),
+      bullets([
+        'Resets on the 1st of each calendar month at 00:00 UTC — back to the full amount.',
+        'No carry-over: unused credits are forfeited each month.',
+        'Add a seat and the pool grows immediately, mid-cycle.',
+        'Remove a seat and the pool shrinks at the start of the next cycle.'])));
+
+    // Two phases.
+    wrap.appendChild(h('div', { class: 'card' },
+      h('h3', null, 'Two phases: free pool first, then metered spend ', docChip('budgets-ubb')),
+      h('div', { class: 'grid cols-2' },
+        h('div', { class: 'mini-card' }, h('strong', null, 'Phase 1 — shared pool'),
+          h('div', { class: 'section-note' }, 'Included, no extra cost. Requests are served free until the pool is empty.')),
+        h('div', { class: 'mini-card' }, h('strong', null, 'Phase 2 — metered'),
+          h('div', { class: 'section-note' }, '$0.01 per credit once the pool is exhausted — and only if additional paid usage is allowed. Otherwise, usage stops here.')))));
+
+    // The controls.
+    wrap.appendChild(h('div', { class: 'card' },
+      h('h3', null, 'Budgets: four levels, from person to enterprise ', docChip('budgets-alerts')),
+      h('div', { class: 'table-wrap' }, h('table', null,
+        h('thead', null, h('tr', null, ['Level', 'Caps', 'Applies to', 'Stop behaviour'].map(function (t) { return h('th', null, t); }))),
+        h('tbody', null, [
+          ['User-level', 'One person', 'Pool + metered (both phases)', 'Always a hard stop'],
+          ['Cost center', 'A team\u2019s metered charges', 'After the pool', 'Stops only if \u201CStop usage\u201D is on'],
+          ['Organization', 'An org\u2019s metered charges', 'After the pool', 'Stops only if \u201CStop usage\u201D is on'],
+          ['Enterprise', 'Total metered charges', 'After the pool', 'Stops only if \u201CStop usage\u201D is on']
+        ].map(function (r) { return h('tr', null, r.map(function (c, i) { return h('td', null, i === 0 ? h('strong', null, c) : c); })); })))),
+      h('div', { class: 'section-note', style: 'margin-top:0.5rem' }, 'For user budgets, the most specific one wins: an individual override beats a per-team (cost-center) amount, which beats the universal default. A $0 user budget blocks that person immediately.')));
+
+    // Request checks.
+    wrap.appendChild(h('div', { class: 'card' },
+      h('h3', null, 'Every request runs through the same checks ', docChip('usage-limits')),
+      h('div', { class: 'flow' },
+        flowStep('1 · User budget', 'blocked if the person is over their cap'),
+        flowArrow(),
+        flowStep('2 · Shared pool', 'served free while credits remain'),
+        flowArrow(),
+        flowStep('3 · Cost center \u2192 org \u2192 enterprise', 'metered $0.01/credit; blocked if a budget with \u201CStop usage\u201D is exceeded')),
+      h('div', { class: 'section-note', style: 'margin-top:0.5rem' }, 'The tightest budget wins. User-level budgets always hard-stop; the lower three stop only if \u201CStop usage\u201D is switched on.')));
+
+    // Two settings + real max.
+    wrap.appendChild(h('div', { class: 'grid cols-2' },
+      h('div', { class: 'card' }, h('h3', null, 'Two settings to remember ', docChip('set-up-budgets')),
+        bullets([
+          '\u201CStop usage when limit reached\u201D is OFF by default — turn it on for every metered budget or spending won\u2019t actually stop.',
+          'A new budget only counts spend from the day you create it, so the first cycle can overshoot. Plan the first month with a little buffer.'])),
+      h('div', { class: 'card' }, h('h3', null, 'The budget is not your whole bill'),
+        h('p', null, 'A metered budget caps ', h('strong', null, 'metered spend only'), '. License fees sit on top.'),
+        h('p', { class: 'section-note' }, 'Example: 400 Business seats \u00D7 $19 = $7,600 in licenses, plus a $5,000 metered budget = up to $12,600 per month — not $5,000.'))));
+
+    // Alerts.
+    wrap.appendChild(h('div', { class: 'card' },
+      h('h3', null, 'Alerts warn you before you hit the wall ', docChip('budgets-alerts')),
+      h('p', null, 'Budget alerts fire at ', h('span', { class: 'pill' }, '75%'), h('span', { class: 'pill' }, '90%'), h('span', { class: 'pill' }, '100%'),
+        ' by email and in-product, to owners and billing managers. Watch cost-center or enterprise usage too — user-level alerts aren\u2019t always reliable.')));
+
+    // Call to action.
+    wrap.appendChild(h('div', { class: 'banner promo' },
+      h('strong', null, 'Ready? '), 'Open ', linkTo('config', 'Configuration'),
+      ' to set budgets exactly like the GitHub UI, then ', linkTo('simulator', 'Simulator'),
+      ' to fire requests and watch the pool, budgets and alerts respond live.'));
+
+    return wrap;
+  }
+  function ideaTile(n, title, desc) {
+    return h('div', { class: 'idea' }, h('div', { class: 'idea-n' }, n),
+      h('div', null, h('strong', null, title), h('div', { class: 'section-note', style: 'margin-top:0.15rem' }, desc)));
+  }
+  function flowStep(title, desc) { return h('div', { class: 'flow-step' }, h('strong', null, title), h('div', { class: 'section-note', style: 'margin-top:0.15rem' }, desc)); }
+  function flowArrow() { return h('div', { class: 'flow-arrow' }, '\u2192'); }
+  function bullets(arr) { return h('ul', { class: 'tick-list' }, arr.map(function (t) { return h('li', null, t); })); }
+  function linkTo(viewId, label) { return h('a', { href: '#', class: 'inline-link', onclick: function (e) { e.preventDefault(); activeView = viewId; render(); } }, label); }
 
   /* --------------------------------- overview ----------------------------- */
   function viewOverview() {
@@ -1323,6 +1466,9 @@ details.rule summary { cursor: pointer; font-weight: 600; }
   /* --------------------------------- simulator ---------------------------- */
   function viewSimulator() {
     var wrap = h('div', null);
+
+    // Live meters — pool, per-user budget, and every metered budget/cap, always visible.
+    wrap.appendChild(liveMetersPanel());
 
     // Time travel
     wrap.appendChild(h('div', { class: 'card' },
@@ -1453,6 +1599,54 @@ details.rule summary { cursor: pointer; font-weight: 600; }
     ));
   }
   function renderOutcomePreviewSlotUpdate() { /* placeholder */ }
+
+  /* Live pool / budget meters shown at the top of the Simulator. Because the
+   * whole view re-renders after every commit(), these values refresh instantly
+   * as requests are simulated — no need to switch back to Overview. */
+  function meterRow(label, used, total, fmt) {
+    var ratio = total ? used / total : 0;
+    var cls = ratio >= 1 ? 'bar danger' : (ratio >= 0.9 ? 'bar warn' : 'bar');
+    return h('div', { class: 'meter-row' },
+      h('div', { class: 'meter-head' }, h('span', null, label),
+        h('span', { class: 'muted' }, fmt(Math.max(0, total - used)) + ' left of ' + fmt(total))),
+      h('div', { class: cls }, h('span', { style: 'width:' + Math.min(100, ratio * 100) + '%' })));
+  }
+  function liveMetersPanel() {
+    var rt = state.runtime;
+    var poolTotal = rt.poolTotalCredits, poolUsed = rt.sharedPoolConsumedCredits;
+    var poolRatio = poolTotal ? poolUsed / poolTotal : 0;
+
+    var user = E.findUser(state, sim.userId), userTile;
+    if (user) {
+      var uc = E.resolveCostCenter(state, user).cc;
+      var ulb = E.resolveEffectiveUlb(state, user, uc);
+      var usedUsd = rt.userConsumedUsd[user.id] || 0;
+      userTile = ulb
+        ? stat('User budget left', usd(Math.max(0, ulb.value - usedUsd)), user.login + ' \u2022 ' + ulb.type + ' cap ' + usd(ulb.value))
+        : stat('User budget left', '\u221E', user.login + ' \u2022 no user-level budget');
+    } else userTile = stat('User budget left', '\u2014', 'Select a user below');
+
+    var entB = state.enterprise.enterpriseBudget;
+    var tiles = h('div', { class: 'grid cols-4' },
+      stat('Shared pool left', credits(Math.max(0, poolTotal - poolUsed)), pct(poolRatio) + ' of ' + credits(poolTotal) + ' used'),
+      stat('Metered this cycle', usd(rt.globalMeteredUsd), 'paid AI credit usage'),
+      userTile,
+      stat('Enterprise budget left', entB ? usd(Math.max(0, entB.amountUsd - rt.entMeteredUsd)) : 'n/a', entB ? 'of ' + usd(entB.amountUsd) : 'no enterprise budget'));
+
+    var meters = [meterRow('Shared AI credit pool', poolUsed, poolTotal, credits)];
+    collectBudgets().forEach(function (r) { meters.push(meterRow(r.scope + ' budget \u2014 ' + r.name, r.used, r.amount, usd)); });
+    state.costCenters.forEach(function (cc2) {
+      if (cc2.includedUsageControl && cc2.includedUsageControl.enabled) {
+        meters.push(meterRow('Included-usage cap \u2014 ' + cc2.name, rt.ccIncludedConsumed[cc2.id] || 0, E.includedCap(state, cc2), credits));
+      }
+    });
+
+    return h('div', { class: 'card live-meters' },
+      h('h3', null, 'Live pool & budget meters ', docChip('budgets-ubb')),
+      h('div', { class: 'section-note' }, 'Every pool, cap, and budget that can gate the next request — in one place. Updates instantly after each simulated request, so you never have to leave this tab.'),
+      tiles,
+      h('div', { class: 'meter-list' }, meters));
+  }
 
   /* ------------------------------ configuration --------------------------- */
   // Mirrors GitHub's "Billing & Licensing" sub-pages.
@@ -2016,6 +2210,7 @@ details.rule summary { cursor: pointer; font-weight: 600; }
 
   /* --------------------------------- shell -------------------------------- */
   var NAV = [
+    { id: 'home', label: 'Start here', render: viewStartHere },
     { id: 'overview', label: 'Overview', render: viewOverview },
     { id: 'config', label: 'Configuration', render: viewConfig },
     { id: 'simulator', label: 'Simulator', render: viewSimulator },
