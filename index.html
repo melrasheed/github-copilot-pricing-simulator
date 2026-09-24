@@ -1220,7 +1220,7 @@ details.rule summary { cursor: pointer; font-weight: 600; }
   /* ------------------------------- formatters ----------------------------- */
   function usd(n) { return '$' + (Number(n) || 0).toFixed(2); }
   function usd4(n) { return '$' + (Number(n) || 0).toFixed(4); }
-  function credits(n) { return E.fmtInt(n) + ' cr'; }
+  function credits(n) { return E.fmtInt(n) + ' AIC'; }
   function pct(r) { return Math.round(r * 100) + '%'; }
   function parseNum(v) { return v === '' || v == null ? null : Number(v); }
 
@@ -1276,10 +1276,10 @@ details.rule summary { cursor: pointer; font-weight: 600; }
     wrap.appendChild(h('div', { class: 'card' },
       h('h3', null, 'Each seat brings monthly credits into a shared pool ', docChip('copilot-licenses')),
       h('div', { class: 'grid cols-4' },
-        stat('Copilot Business', E.fmtInt(C.CB_INCLUDED_CREDITS) + ' cr', 'included per seat / month'),
-        stat('Copilot Enterprise', E.fmtInt(C.CE_INCLUDED_CREDITS) + ' cr', 'included per seat / month'),
-        stat('Promo — Business', E.fmtInt(C.PROMO_CB_CREDITS) + ' cr', 'through ' + C.PROMO_END_UTC),
-        stat('Promo — Enterprise', E.fmtInt(C.PROMO_CE_CREDITS) + ' cr', 'through ' + C.PROMO_END_UTC)),
+        stat('Copilot Business', E.fmtInt(C.CB_INCLUDED_CREDITS) + ' AIC', 'included per seat / month'),
+        stat('Copilot Enterprise', E.fmtInt(C.CE_INCLUDED_CREDITS) + ' AIC', 'included per seat / month'),
+        stat('Promo — Business', E.fmtInt(C.PROMO_CB_CREDITS) + ' AIC', 'through ' + C.PROMO_END_UTC),
+        stat('Promo — Enterprise', E.fmtInt(C.PROMO_CE_CREDITS) + ' AIC', 'through ' + C.PROMO_END_UTC)),
       h('p', { style: 'margin-top:0.6rem' }, '100 Business seats do not make 100 separate buckets — they make ',
         h('strong', null, 'one shared pool of ' + E.fmtInt(100 * C.CB_INCLUDED_CREDITS) + ' credits'),
         '. Power users draw more when they need it; lighter users leave headroom for the team.')));
