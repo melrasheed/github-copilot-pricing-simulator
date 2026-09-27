@@ -30,11 +30,11 @@ Just open `index.html` in any modern browser, or visit the live site above.
 
 This is an **unofficial, independent educational tool**. It is **not affiliated
 with, endorsed by, or supported by Microsoft or GitHub**, and **neither Microsoft
-nor GitHub is responsible** for this tool or its content. Credit values,
-promotions, and rules are modeled from public GitHub documentation and may be
+nor GitHub is responsible** for this tool or its content. Credit values and
+rules are modeled from public GitHub documentation and may be
 inaccurate or out of date. Always consult the
 [official GitHub billing documentation](https://docs.github.com/en/billing) for
 authoritative, current information.
 
-**Last updated:** 2026-07-23
+**Last updated:** 2026-09-27
 **Issues or feedback:** mohdrash1990@hotmail.com

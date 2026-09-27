@@ -178,7 +178,7 @@ tbody tr:hover { background: var(--cp-surface-soft); }
 
 /* Banner */
 .banner { border-radius: 12px; padding: 0.7rem 1rem; margin-bottom: 1rem; font-size: 0.85rem; border: 1px solid; }
-.banner.promo { background: var(--cp-accent-soft); border-color: var(--cp-accent); color: var(--cp-text); }
+.banner.highlight { background: var(--cp-accent-soft); border-color: var(--cp-accent); color: var(--cp-text); }
 .banner.info { background: var(--cp-surface-soft); border-color: var(--cp-border); }
 .banner.warn { background: rgba(245,158,11,0.12); border-color: var(--cp-warning); }
 
@@ -269,11 +269,6 @@ details.rule summary { cursor: pointer; font-weight: 600; }
     CREDIT_TO_USD: CREDIT_TO_USD,
     CB_INCLUDED_CREDITS: 1900,
     CE_INCLUDED_CREDITS: 3900,
-    // Promotional pool per seat, June 1 - September 1, 2026 (existing customers).
-    PROMO_CB_CREDITS: 3000,
-    PROMO_CE_CREDITS: 7000,
-    PROMO_START_UTC: '2026-06-01',
-    PROMO_END_UTC: '2026-09-01',
     ALERT_THRESHOLDS_BUDGET: [0.75, 0.9, 1.0],
     ALERT_THRESHOLDS_INCLUDED_USAGE: [0.9, 1.0],
     // Included-usage email alerts are documented ONLY for these products.
@@ -497,10 +492,6 @@ details.rule summary { cursor: pointer; font-weight: 600; }
     return y + '-' + String(mo).padStart(2, '0') + '-01';
   }
 
-  function isPromo(dateStr) {
-    return dateStr >= C.PROMO_START_UTC && dateStr < C.PROMO_END_UTC;
-  }
-
   /* ----------------------------- prng (mulberry32) ------------------------ */
   function hashString(s) {
     var h = 1779033703 ^ s.length;
@@ -520,18 +511,15 @@ details.rule summary { cursor: pointer; font-weight: 600; }
   }
 
   /* ----------------------------- license credits -------------------------- */
-  function seatPoolCredits(user, dateStr) {
-    var promo = isPromo(dateStr);
-    if (user.licenseType === 'CopilotEnterprise') return promo ? C.PROMO_CE_CREDITS : C.CE_INCLUDED_CREDITS;
-    return promo ? C.PROMO_CB_CREDITS : C.CB_INCLUDED_CREDITS;
+  function seatPoolCredits(user) {
+    return user.licenseType === 'CopilotEnterprise' ? C.CE_INCLUDED_CREDITS : C.CB_INCLUDED_CREDITS;
   }
   function seatIncludedCredits(user) {
-    // Included-usage cap always uses base amounts (not promo).
     return user.licenseType === 'CopilotEnterprise' ? C.CE_INCLUDED_CREDITS : C.CB_INCLUDED_CREDITS;
   }
 
-  function totalPoolCredits(state, dateStr) {
-    return state.users.reduce(function (sum, u) { return sum + seatPoolCredits(u, dateStr); }, 0);
+  function totalPoolCredits(state) {
+    return state.users.reduce(function (sum, u) { return sum + seatPoolCredits(u); }, 0);
   }
 
   /* ----------------------------- lookups ---------------------------------- */
@@ -657,7 +645,7 @@ details.rule summary { cursor: pointer; font-weight: 600; }
   function freshRuntime(state, dateStr) {
     var rt = {
       cycleKey: cycleKeyOf(dateStr),
-      poolTotalCredits: totalPoolCredits(state, dateStr),
+      poolTotalCredits: totalPoolCredits(state),
       sharedPoolConsumedCredits: 0,
       ccIncludedConsumed: {},
       userConsumedUsd: {},
@@ -924,7 +912,7 @@ details.rule summary { cursor: pointer; font-weight: 600; }
     s.users = inState.users.concat([user]);
     s = ensureCycle(s);
     var rt = cloneRuntime(s.runtime);
-    rt.poolTotalCredits += seatPoolCredits(user, s.clock.currentDateUtc);
+    rt.poolTotalCredits += seatPoolCredits(user);
     s.runtime = rt;
     return s;
   }
@@ -954,7 +942,7 @@ details.rule summary { cursor: pointer; font-weight: 600; }
     // license changes
     addUser: addUser, removeUser: removeUser,
     // helpers
-    cycleKeyOf: cycleKeyOf, addDays: addDays, nextCycleStart: nextCycleStart, isPromo: isPromo,
+    cycleKeyOf: cycleKeyOf, addDays: addDays, nextCycleStart: nextCycleStart,
     findUser: findUser, findOrg: findOrg, findCostCenter: findCostCenter,
     shallowCloneState: shallowCloneState, fmtInt: fmtInt
   };
@@ -1161,7 +1149,7 @@ details.rule summary { cursor: pointer; font-weight: 600; }
   'use strict';
   var DATA = window.SIM_DATA, E = window.SIM_ENGINE, SC = window.SIM_SCENARIOS, C = DATA.CONSTANTS;
   var STORAGE_KEY = 'gh-copilot-billing-sim.v1';
-  var LAST_UPDATED = '2026-07-23';
+  var LAST_UPDATED = '2026-09-27';
   var CONTACT_EMAIL = 'mohdrash1990@hotmail.com';
 
   /* --------------------------------- state -------------------------------- */
@@ -1275,11 +1263,9 @@ details.rule summary { cursor: pointer; font-weight: 600; }
     // Included allowance + pooling.
     wrap.appendChild(h('div', { class: 'card' },
       h('h3', null, 'Each seat brings monthly credits into a shared pool ', docChip('copilot-licenses')),
-      h('div', { class: 'grid cols-4' },
+      h('div', { class: 'grid cols-2' },
         stat('Copilot Business', E.fmtInt(C.CB_INCLUDED_CREDITS) + ' AIC', 'included per seat / month'),
-        stat('Copilot Enterprise', E.fmtInt(C.CE_INCLUDED_CREDITS) + ' AIC', 'included per seat / month'),
-        stat('Promo — Business', E.fmtInt(C.PROMO_CB_CREDITS) + ' AIC', 'through ' + C.PROMO_END_UTC),
-        stat('Promo — Enterprise', E.fmtInt(C.PROMO_CE_CREDITS) + ' AIC', 'through ' + C.PROMO_END_UTC)),
+        stat('Copilot Enterprise', E.fmtInt(C.CE_INCLUDED_CREDITS) + ' AIC', 'included per seat / month')),
       h('p', { style: 'margin-top:0.6rem' }, '100 Business seats do not make 100 separate buckets — they make ',
         h('strong', null, 'one shared pool of ' + E.fmtInt(100 * C.CB_INCLUDED_CREDITS) + ' credits'),
         '. Power users draw more when they need it; lighter users leave headroom for the team.')));
@@ -1343,7 +1329,7 @@ details.rule summary { cursor: pointer; font-weight: 600; }
         ' by email and in-product, to owners and billing managers. Watch cost-center or enterprise usage too — user-level alerts aren\u2019t always reliable.')));
 
     // Call to action.
-    wrap.appendChild(h('div', { class: 'banner promo' },
+    wrap.appendChild(h('div', { class: 'banner highlight' },
       h('strong', null, 'Ready? '), 'Open ', linkTo('config', 'Configuration'),
       ' to set budgets exactly like the GitHub UI, then ', linkTo('simulator', 'Simulator'),
       ' to fire requests and watch the pool, budgets and alerts respond live.'));
@@ -1377,13 +1363,7 @@ details.rule summary { cursor: pointer; font-weight: 600; }
     var poolRatio = poolTotal ? poolUsed / poolTotal : 0;
     var seatsCB = state.users.filter(function (u) { return u.licenseType === 'CopilotBusiness'; }).length;
     var seatsCE = state.users.filter(function (u) { return u.licenseType === 'CopilotEnterprise'; }).length;
-    var promo = E.isPromo(state.clock.currentDateUtc);
-
     var wrap = h('div', null);
-    if (promo) wrap.appendChild(h('div', { class: 'banner promo' },
-      'Promotional pool active (' + C.PROMO_START_UTC + ' → ' + C.PROMO_END_UTC + '): ' +
-      C.PROMO_CB_CREDITS + ' credits per Business seat and ' + C.PROMO_CE_CREDITS +
-      ' per Enterprise seat. The included-usage cap still uses the base 1,900 / 3,900 amounts.', docChip('models-pricing')));
 
     // Stat tiles
     var tiles = h('div', { class: 'grid cols-4' },
