@@ -234,12 +234,30 @@ details.rule summary { cursor: pointer; font-weight: 600; }
 .inline-link:hover { text-decoration: underline; }
 
 /* Simulator live meters — sticky so it stays visible while building requests */
+.simulator-layout { display: grid; grid-template-columns: minmax(240px, 280px) minmax(0, 1fr); gap: 1rem; align-items: start; }
+.simulator-workspace { min-width: 0; }
+.scenario-legend { position: sticky; top: 0.75rem; align-self: start; }
+.scenario-legend .card { margin-bottom: 0; max-height: calc(100vh - 1.5rem); overflow-y: auto; }
+.scenario-legend h3 { margin-bottom: 0.35rem; }
+.legend-section { border-top: 1px solid var(--cp-border); margin-top: 0.9rem; padding-top: 0.8rem; }
+.legend-section h4 { font-size: 0.78rem; letter-spacing: 0.03em; text-transform: uppercase; color: var(--cp-text-muted); margin-bottom: 0.55rem; }
+.legend-list { display: grid; gap: 0.55rem; }
+.legend-item { background: var(--cp-surface-soft); border: 1px solid var(--cp-border); border-radius: 10px; padding: 0.55rem 0.65rem; font-size: 0.8rem; }
+.legend-item-head { display: flex; align-items: center; justify-content: space-between; gap: 0.4rem; margin-bottom: 0.2rem; }
+.legend-line { color: var(--cp-text-muted); line-height: 1.4; }
+.legend-key-value { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem; font-size: 0.8rem; margin-top: 0.4rem; }
+.legend-key-value > span:first-child { color: var(--cp-text-muted); }
 .live-meters { position: sticky; top: 0.75rem; z-index: 5; border-color: var(--cp-accent); box-shadow: var(--cp-shadow); }
 .meter-list { display: grid; gap: 0.55rem; margin-top: 0.9rem; }
 .meter-row .meter-head { display: flex; justify-content: space-between; gap: 0.75rem; font-size: 0.82rem; margin-bottom: 0.12rem; }
 
 /* Global disclaimer footer (shown on every view) */
 .app-footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--cp-border); font-size: 0.8rem; color: var(--cp-text-muted); line-height: 1.5; }
+@media (max-width: 1200px) {
+  .simulator-layout { grid-template-columns: 1fr; }
+  .scenario-legend { position: static; }
+  .scenario-legend .card { max-height: none; }
+}
 @media (max-width: 780px) {
   .app { flex-direction: column; }
   .sidebar { width: 100%; height: auto; position: static; flex-direction: row; flex-wrap: wrap; }
@@ -1460,13 +1478,13 @@ details.rule summary { cursor: pointer; font-weight: 600; }
 
   /* --------------------------------- simulator ---------------------------- */
   function viewSimulator() {
-    var wrap = h('div', null);
+    var workspace = h('div', { class: 'simulator-workspace' });
 
     // Live meters — pool, per-user budget, and every metered budget/cap, always visible.
-    wrap.appendChild(liveMetersPanel());
+    workspace.appendChild(liveMetersPanel());
 
     // Time travel
-    wrap.appendChild(h('div', { class: 'card' },
+    workspace.appendChild(h('div', { class: 'card' },
       h('h3', null, 'Time travel ', docChip('billing-cycle')),
       h('div', { class: 'row' },
         h('div', null, h('strong', null, 'Current date: '), state.clock.currentDateUtc, ' ', h('span', { class: 'muted' }, '(cycle ' + state.runtime.cycleKey + ')')),
@@ -1483,7 +1501,7 @@ details.rule summary { cursor: pointer; font-weight: 600; }
     var featOpts = DATA.FEATURES.map(function (f) { return opt(f.id, f.label + (f.consumesCredits ? '' : ' — unlimited'), f.id === sim.feature); });
     var modelOpts = E.modelFamilies().map(function (m) { return opt(m, m, m === sim.modelName); });
 
-    wrap.appendChild(h('div', { class: 'card' },
+    workspace.appendChild(h('div', { class: 'card' },
       h('h3', null, 'Request builder ', docChip('models-pricing')),
       h('div', { class: 'row' },
         field('User', h('select', { onchange: function (e) { sim.userId = e.target.value; } }, userOpts)),
@@ -1505,16 +1523,82 @@ details.rule summary { cursor: pointer; font-weight: 600; }
     ));
 
     // Outcome
-    wrap.appendChild(h('div', { id: 'outcome-slot' }, lastResult ? outcomeCard(lastResult) : h('div', { class: 'card muted' }, 'Run a request to see the evaluated outcome, the applied budget chain, and documentation sources.')));
+    workspace.appendChild(h('div', { id: 'outcome-slot' }, lastResult ? outcomeCard(lastResult) : h('div', { class: 'card muted' }, 'Run a request to see the evaluated outcome, the applied budget chain, and documentation sources.')));
 
     // Event log
-    wrap.appendChild(h('div', { class: 'card' },
+    workspace.appendChild(h('div', { class: 'card' },
       h('div', { class: 'view-header' }, h('h3', null, 'Event log'), h('button', { class: 'btn ghost small', onclick: function () { editStatePreserveClock(function (ns) { ns.events = []; }); } }, 'Clear log')),
       eventLogTable()
     ));
 
     setTimeout(renderOutcomePreview, 0);
-    return wrap;
+    return h('div', { class: 'simulator-layout' }, scenarioDetailsPanel(), workspace);
+  }
+
+  function scenarioDetailsPanel() {
+    var preset = SC.presets.filter(function (p) { return p.id === state.meta.selectedScenarioId; })[0];
+    var entBudget = state.enterprise.enterpriseBudget;
+    var controls = h('div', { class: 'legend-section' },
+      h('h4', null, 'Controls'),
+      legendKeyValue('Paid AI usage', state.enterprise.aiCreditPaidUsagePolicyEnabled ? badge('Enabled', 'ok') : badge('Disabled', 'block')),
+      legendKeyValue('Universal ULB', state.enterprise.universalUlbUsd == null ? badge('None', 'neutral') : usd(state.enterprise.universalUlbUsd)),
+      legendKeyValue('Enterprise budget', entBudget
+        ? [usd(entBudget.amountUsd), ' ', entBudget.hardStop ? badge('hard', 'block') : badge('soft', 'warn')]
+        : badge('None', 'neutral')));
+
+    var users = h('div', { class: 'legend-section' },
+      h('h4', null, 'Users & effective budgets'),
+      h('div', { class: 'legend-list' }, state.users.map(function (user) {
+        var resolved = E.resolveCostCenter(state, user);
+        var ulb = E.resolveEffectiveUlb(state, user, resolved.cc);
+        return h('div', { class: 'legend-item' },
+          h('div', { class: 'legend-item-head' }, h('strong', null, user.login), badge(shortLic(user.licenseType), 'neutral')),
+          h('div', { class: 'legend-line' }, resolved.cc ? resolved.cc.name + ' \u2022 ' + resolved.via : 'No cost center'),
+          h('div', { class: 'legend-line' }, ulb ? 'Budget: ' + usd(ulb.value) + ' (' + ulb.type + ')' : 'No user-level budget'));
+      })));
+
+    var costCenters = h('div', { class: 'legend-section' },
+      h('h4', null, 'Cost centers'),
+      state.costCenters.length
+        ? h('div', { class: 'legend-list' }, state.costCenters.map(function (cc) {
+            var orgNames = state.organizations.filter(function (o) { return (cc.memberOrgIds || []).indexOf(o.id) !== -1; }).map(function (o) { return o.name; });
+            var userNames = state.users.filter(function (u) { return (cc.memberUserIds || []).indexOf(u.id) !== -1; }).map(function (u) { return u.login; });
+            var teamNames = (state.enterpriseTeams || []).filter(function (t) { return t.costCenterId === cc.id; }).map(function (t) { return t.name; });
+            var assignments = orgNames.concat(teamNames.map(function (n) { return n + ' team'; }), userNames);
+            var included = cc.includedUsageControl && cc.includedUsageControl.enabled;
+            return h('div', { class: 'legend-item' },
+              h('div', { class: 'legend-item-head' }, h('strong', null, cc.name), cc.budget ? (cc.budget.hardStop ? badge('hard stop', 'block') : badge('alert only', 'warn')) : null),
+              h('div', { class: 'legend-line' }, assignments.length ? assignments.join(', ') : 'No members assigned'),
+              h('div', { class: 'legend-line' }, 'Metered budget: ' + (cc.budget ? usd(cc.budget.amountUsd) : 'none')),
+              h('div', { class: 'legend-line' }, 'User budget: ' + (cc.userLevelBudgetUsd == null ? 'none' : usd(cc.userLevelBudgetUsd))),
+              included ? h('div', { class: 'legend-line' }, 'Included cap: ' + credits(E.includedCap(state, cc)) + ' \u2022 ' + cc.includedUsageControl.onCapReached) : null);
+          }))
+        : h('div', { class: 'legend-line' }, 'No cost centers configured.'));
+
+    var orgBudgets = state.organizations.filter(function (o) { return o.budget; });
+    var organizations = h('div', { class: 'legend-section' },
+      h('h4', null, 'Organization budgets'),
+      orgBudgets.length
+        ? h('div', { class: 'legend-list' }, orgBudgets.map(function (org) {
+            return h('div', { class: 'legend-item' },
+              h('div', { class: 'legend-item-head' }, h('strong', null, org.name), org.budget.hardStop ? badge('hard stop', 'block') : badge('alert only', 'warn')),
+              h('div', { class: 'legend-line' }, usd(org.budget.amountUsd)));
+          }))
+        : h('div', { class: 'legend-line' }, 'No organization budgets configured.'));
+
+    return h('aside', { class: 'scenario-legend', 'aria-label': 'Current scenario details' },
+      h('div', { class: 'card' },
+        h('h3', null, 'Current scenario'),
+        h('div', { class: 'legend-item-head' }, h('strong', null, preset ? preset.name : state.meta.selectedScenarioId), badge(state.users.length + ' users', 'meter')),
+        preset ? h('p', { class: 'legend-line' }, preset.description) : null,
+        controls,
+        users,
+        costCenters,
+        organizations));
+  }
+
+  function legendKeyValue(label, value) {
+    return h('div', { class: 'legend-key-value' }, h('span', null, label), h('span', null, value));
   }
 
   function numInput(key) {
