@@ -1388,7 +1388,7 @@ details.rule summary { cursor: pointer; font-weight: 600; }
       h('div', { class: 'grid cols-3' },
         kvTile('AI credit paid usage', state.enterprise.aiCreditPaidUsagePolicyEnabled ? badge('Enabled', 'ok') : badge('Disabled', 'block')),
         kvTile('Universal ULB', state.enterprise.universalUlbUsd == null ? badge('None', 'neutral') : usd(state.enterprise.universalUlbUsd)),
-        kvTile('Enterprise budget', state.enterprise.enterpriseBudget ? (usd(state.enterprise.enterpriseBudget.amountUsd) + ' ' + (state.enterprise.enterpriseBudget.hardStop ? badge('hard stop', 'block') : badge('alert only', 'warn'))) : badge('None', 'neutral')),
+        kvTile('Enterprise budget', state.enterprise.enterpriseBudget ? [usd(state.enterprise.enterpriseBudget.amountUsd), ' ', state.enterprise.enterpriseBudget.hardStop ? badge('hard stop', 'block') : badge('alert only', 'warn')] : badge('None', 'neutral')),
         kvTile('Auto-model discount', state.settings.enableAutoModelDiscount ? badge('On (unverified)', 'warn') : badge('Off', 'neutral')),
         kvTile('Data residency ×1.10', state.settings.enableDataResidency ? badge('On (unverified)', 'warn') : badge('Off', 'neutral')),
         kvTile('Scenario', state.meta.selectedScenarioId)
