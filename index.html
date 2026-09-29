@@ -1008,7 +1008,7 @@ details.rule summary { cursor: pointer; font-weight: 600; }
       { id: 'u-ben', login: 'ben', licenseType: 'CopilotBusiness', assigningOrgIds: ['org-eng'], individualUlbUsd: null, individualUlbExpiration: null },
       { id: 'u-cara', login: 'cara', licenseType: 'CopilotBusiness', assigningOrgIds: ['org-mkt'], individualUlbUsd: null, individualUlbExpiration: null },
       { id: 'u-dan', login: 'dan', licenseType: 'CopilotBusiness', assigningOrgIds: ['org-data'], individualUlbUsd: null, individualUlbExpiration: null },
-      { id: 'u-eve', login: 'eve', licenseType: 'CopilotEnterprise', assigningOrgIds: ['org-eng', 'org-data'], individualUlbUsd: null, individualUlbExpiration: null }
+      { id: 'u-eve', login: 'eve', licenseType: 'CopilotEnterprise', assigningOrgIds: ['org-data'], individualUlbUsd: null, individualUlbExpiration: null }
     ];
   }
   function baseOrgs() {
@@ -1200,6 +1200,7 @@ details.rule summary { cursor: pointer; font-weight: 600; }
   var lastResult = null;
   var configTab = 'budgets';
   var budgetModal = null;
+  var costCenterModal = null;
   var sim = defaultSimulationRequest(state);
 
   function defaultSimulationRequest(currentState) {
@@ -1582,8 +1583,12 @@ details.rule summary { cursor: pointer; font-weight: 600; }
       h('div', { class: 'legend-list' }, state.users.map(function (user) {
         var resolved = E.resolveCostCenter(state, user);
         var ulb = E.resolveEffectiveUlb(state, user, resolved.cc);
+        var orgNames = state.organizations.filter(function (org) {
+          return (user.assigningOrgIds || []).indexOf(org.id) !== -1;
+        }).map(function (org) { return org.name; });
         return h('div', { class: 'legend-item' },
           h('div', { class: 'legend-item-head' }, h('strong', null, user.login), badge(shortLic(user.licenseType), 'neutral')),
+          h('div', { class: 'legend-line' }, 'Organization' + (orgNames.length === 1 ? ': ' : 's: ') + (orgNames.length ? orgNames.join(', ') : 'None')),
           h('div', { class: 'legend-line' }, resolved.cc ? resolved.cc.name + ' \u2022 ' + resolved.via : 'No cost center'),
           h('div', { class: 'legend-line' }, ulb ? 'Budget: ' + usd(ulb.value) + ' (' + ulb.type + ')' : 'No user-level budget'),
           user.individualUlbUsd != null ? h('div', { class: 'legend-line' }, individualExpirationLabel(user.individualUlbExpiration)) : null);
@@ -2105,6 +2110,64 @@ details.rule summary { cursor: pointer; font-weight: 600; }
     wrap.appendChild(state.costCenters.length ? h('div', null, state.costCenters.map(costCenterEditor)) : h('div', { class: 'card muted' }, 'No cost centers yet.'));
     return wrap;
   }
+  function openCostCenterModal() {
+    costCenterModal = { name: '', memberOrgIds: [], memberUserIds: [], includedUsageCap: false };
+    render();
+  }
+  function closeCostCenterModal() {
+    costCenterModal = null;
+    render();
+  }
+  function createCostCenter() {
+    var draft = costCenterModal;
+    var name = draft && String(draft.name || '').trim();
+    if (!name) { alert('Enter a cost center name.'); return; }
+    costCenterModal = null;
+    editState(function (ns) {
+      ns.costCenters.push({
+        id: 'cc-' + Date.now(),
+        name: name,
+        memberUserIds: draft.memberUserIds.slice(),
+        memberOrgIds: draft.memberOrgIds.slice(),
+        budget: null,
+        userLevelBudgetUsd: null,
+        includedUsageControl: draft.includedUsageCap ? { enabled: true, onCapReached: 'block' } : null
+      });
+    });
+  }
+  function renderCostCenterModal() {
+    var d = costCenterModal; if (!d) return null;
+    var modal = h('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Create cost center' },
+      h('h2', null, 'Create cost center ', docChip('cost-centers')),
+      field('Cost center name', h('input', {
+        type: 'text', value: d.name, placeholder: 'Enter a unique name',
+        onchange: function (e) { d.name = e.target.value; }
+      })),
+      h('div', { style: 'margin-top:0.8rem' },
+        h('h3', null, 'Resources'),
+        h('div', { class: 'section-note', style: 'margin-top:0.2rem' }, 'Assign organizations or individual users whose usage should be attributed to this cost center.'),
+        h('div', { class: 'grid cols-2' },
+          field('Organizations', orgCheckboxes(d.memberOrgIds, function (ids) { d.memberOrgIds = ids; render(); })),
+          field('Users', userCheckboxes(d.memberUserIds, function (ids) { d.memberUserIds = ids; render(); })))),
+      h('div', { style: 'margin-top:0.8rem' },
+        h('h3', null, 'Settings'),
+        h('div', { class: 'section-note', style: 'margin-top:0.2rem' }, 'Set caps on each cost center so usage stops at the included credits your licenses already cover.'),
+        h('label', { class: 'mini-card', style: 'display:flex;align-items:flex-start;gap:0.7rem;cursor:pointer' },
+          h('input', {
+            type: 'checkbox', checked: d.includedUsageCap, style: 'width:auto;margin-top:0.2rem',
+            onchange: function (e) { d.includedUsageCap = e.target.checked; }
+          }),
+          h('span', null,
+            h('strong', null, 'AI credit included usage cap'),
+            h('span', { class: 'muted', style: 'display:block;margin-top:0.2rem;font-size:0.85rem' },
+              'Caps included usage at the total AI credits that come with the Copilot licenses attributed to this cost center.')))),
+      h('div', { class: 'modal-actions' },
+        h('button', { class: 'btn ghost', onclick: closeCostCenterModal }, 'Cancel'),
+        h('button', { class: 'btn', onclick: createCostCenter }, 'Create cost center')));
+    return h('div', { class: 'modal-overlay', onclick: function (e) {
+      if (e.target.classList.contains('modal-overlay')) closeCostCenterModal();
+    } }, modal);
+  }
   function configLicensing() {
     var wrap = h('div', null);
     wrap.appendChild(h('div', { class: 'view-header' },
@@ -2150,7 +2213,7 @@ details.rule summary { cursor: pointer; font-weight: 600; }
   }
   function addUser() { editState(function (ns) { ns.users.push({ id: 'u-' + Date.now(), login: 'newuser', licenseType: 'CopilotBusiness', assigningOrgIds: ns.organizations[0] ? [ns.organizations[0].id] : [], individualUlbUsd: null, individualUlbExpiration: null }); }); }
   function addOrg() { editState(function (ns) { ns.organizations.push({ id: 'org-' + Date.now(), name: 'New org', budget: null }); }); }
-  function addCostCenter() { editState(function (ns) { ns.costCenters.push({ id: 'cc-' + Date.now(), name: 'New cost center', memberUserIds: [], memberOrgIds: [], budget: null, userLevelBudgetUsd: null, includedUsageControl: null }); }); }
+  function addCostCenter() { openCostCenterModal(); }
 
   /* ---------------------------- alerts & reports -------------------------- */
   function viewReports() {
@@ -2439,6 +2502,7 @@ details.rule summary { cursor: pointer; font-weight: 600; }
 
     root.appendChild(h('div', { class: 'app' }, nav, main));
     if (budgetModal) root.appendChild(renderBudgetModal());
+    if (costCenterModal) root.appendChild(renderCostCenterModal());
   }
 
   render();
