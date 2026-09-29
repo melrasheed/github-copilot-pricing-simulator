@@ -1535,7 +1535,7 @@ details.rule summary { cursor: pointer; font-weight: 600; }
     workspace.appendChild(h('div', { class: 'card' },
       h('h3', null, 'Request builder ', docChip('models-pricing')),
       h('div', { class: 'row' },
-        field('User', h('select', { onchange: function (e) { sim.userId = e.target.value; } }, userOpts)),
+        field('User', h('select', { onchange: function (e) { sim.userId = e.target.value; render(); } }, userOpts)),
         field('Feature', h('select', { onchange: function (e) { sim.feature = e.target.value; renderOutcomePreview(); } }, featOpts)),
         field('Model', h('select', { onchange: function (e) { sim.modelName = e.target.value; renderOutcomePreview(); } }, modelOpts))
       ),
