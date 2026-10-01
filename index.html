@@ -1102,7 +1102,9 @@ details.rule summary { cursor: pointer; font-weight: 600; }
           { id: 'cc-eng', name: 'Engineering Cost Center', memberOrgIds: [], memberUserIds: ['u-anna', 'u-ben'],
             budget: null, userLevelBudgetUsd: 50, includedUsageControl: null },
           { id: 'cc-mkt', name: 'Marketing Cost Center', memberOrgIds: [], memberUserIds: ['u-cara'],
-            budget: null, userLevelBudgetUsd: 15, includedUsageControl: null }
+            budget: null, userLevelBudgetUsd: 15, includedUsageControl: null },
+          { id: 'cc-data', name: 'Data Cost Center', memberOrgIds: [], memberUserIds: ['u-dan', 'u-eve'],
+            budget: null, userLevelBudgetUsd: 19, includedUsageControl: null }
         ];
         s.users.filter(function (u) { return u.id === 'u-anna'; })[0].individualUlbUsd = 75; // power user override
         return s;
