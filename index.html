@@ -992,7 +992,7 @@ details.rule summary { cursor: pointer; font-weight: 600; }
 </script>
 <script>
 /*
- * scenarios.js — Default simulation snapshot and the six documented preset
+ * scenarios.js — Default simulation snapshot and the five documented preset
  * configurations. Each preset cites the tutorial section it is drawn from.
  * Pure data/builders; no DOM access.
  */
@@ -1128,22 +1128,6 @@ details.rule summary { cursor: pointer; font-weight: 600; }
         ];
         s.users.filter(function (u) { return u.id === 'u-anna'; })[0].individualUlbUsd = 100;
         s.users.filter(function (u) { return u.id === 'u-eve'; })[0].individualUlbUsd = 80;
-        return s;
-      }
-    },
-    {
-      id: 'delegated-org',
-      name: 'Delegated organization budgets',
-      description: 'Organization budgets delegated to org owners, with an enterprise-budget failsafe and a hard stop.',
-      sourceRefs: [ref('optimizing-budgets', 'Delegating control to organization owners')],
-      build: function () {
-        var s = baseState();
-        s.meta.selectedScenarioId = 'delegated-org';
-        s.enterprise.universalUlbUsd = 12;
-        s.enterprise.enterpriseBudget = { amountUsd: 900, hardStop: true, excludeCostCenters: false };
-        s.organizations.filter(function (o) { return o.id === 'org-eng'; })[0].budget = { amountUsd: 300, hardStop: true };
-        s.organizations.filter(function (o) { return o.id === 'org-mkt'; })[0].budget = { amountUsd: 100, hardStop: true };
-        s.organizations.filter(function (o) { return o.id === 'org-data'; })[0].budget = { amountUsd: 200, hardStop: true };
         return s;
       }
     },
