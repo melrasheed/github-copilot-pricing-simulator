@@ -1227,6 +1227,7 @@ details.rule summary { cursor: pointer; font-weight: 600; }
   }
   function commit(ns) { state = ns; persist(); render(); }
   function editState(fn) { var ns = SC.clone(state); ns.runtime = null; fn(ns); ns = E.ensureCycle(ns); commit(ns); }
+  function editStatePreserveRuntime(fn) { var ns = SC.clone(state); fn(ns); commit(E.ensureCycle(ns)); }
 
   /* ------------------------------- dom helpers ---------------------------- */
   function h(tag, attrs) {
@@ -1937,7 +1938,7 @@ details.rule summary { cursor: pointer; font-weight: 600; }
 
   function deleteBudget(id) {
     if (!confirm('Delete this budget?')) return;
-    editState(function (ns) {
+    editStatePreserveRuntime(function (ns) {
       if (id === 'ent') ns.enterprise.enterpriseBudget = null;
       else if (id === 'uni') ns.enterprise.universalUlbUsd = null;
       else if (id.indexOf('cculb:') === 0) { var c = ns.costCenters.filter(function (x) { return x.id === id.slice(6); })[0]; if (c) c.userLevelBudgetUsd = null; }
@@ -1994,7 +1995,7 @@ details.rule summary { cursor: pointer; font-weight: 600; }
       return;
     }
     budgetModal = null;
-    editState(function (ns) {
+    editStatePreserveRuntime(function (ns) {
       if (d.scope === 'enterprise') { var keep = ns.enterprise.enterpriseBudget && ns.enterprise.enterpriseBudget.excludeCostCenters; ns.enterprise.enterpriseBudget = { amountUsd: amt, hardStop: d.hardStop, excludeCostCenters: !!keep }; }
       else if (d.scope === 'organization') { var o = ns.organizations.filter(function (x) { return x.id === d.orgId; })[0]; if (o) o.budget = { amountUsd: amt, hardStop: d.hardStop }; }
       else if (d.scope === 'costcenter') { var c = ns.costCenters.filter(function (x) { return x.id === d.ccId; })[0]; if (c) c.budget = { amountUsd: amt, hardStop: d.hardStop }; }
