@@ -1059,7 +1059,7 @@ details.rule summary { cursor: pointer; font-weight: 600; }
       build: function () {
         var s = baseState();
         s.meta.selectedScenarioId = 'universal-ulb';
-        s.enterprise.universalUlbUsd = 15;
+        s.enterprise.universalUlbUsd = 40;
         s.enterprise.enterpriseBudget = { amountUsd: 500, hardStop: true, excludeCostCenters: false };
         // Power user override.
         s.users.filter(function (u) { return u.id === 'u-anna'; })[0].individualUlbUsd = 60;
